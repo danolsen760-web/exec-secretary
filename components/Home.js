@@ -1,5 +1,7 @@
 'use client';
 import { IvTag, DuePill } from './bits';
+import { MEETINGS, sundayLabel } from '@/lib/names';
+import { meetingsOn } from '@/lib/suggest';
 
 export default function Home({ ctx }) {
   const { data, H, go } = ctx;
@@ -21,8 +23,21 @@ export default function Home({ ctx }) {
   const done = items.filter(i => i.ok).length;
   const due = ys.filter(x => x.y.status !== 'later').sort((a, b) => (a.y.due || 0) - (b.y.due || 0));
 
+  const date = ctx.agendaDate;
+  const agendaStatus = meetingsOn(date, data.settings).map(m => {
+    const a = data.agendas.find(x => x.meeting === m && x.date === date);
+    const pill = a?.sentAt ? <span className="pill ok">Sent</span> : a?.docUrl ? <span className="pill warn">Created, not sent</span> : <span className="pill plain">Not created</span>;
+    return { m, pill, done: !!a?.sentAt };
+  });
+
   return (
     <>
+      <div className="card made">
+        <div><div className="mini">Agendas · {sundayLabel(date)}</div>
+          {agendaStatus.map(x => <div className="agrow" key={x.m}><span className="name">{MEETINGS[x.m].short}</span>{x.pill}</div>)}</div>
+        {!agendaStatus.every(x => x.done) && <button className="btn primary" type="button" onClick={() => go('agendas')}>Open Agenda Builder</button>}
+      </div>
+
       <div className="stats">
         <div className="stat bad"><b>{over}</b><span>Youth overdue</span></div>
         <div className="stat warn"><b>{soon}</b><span>Due in 6 weeks</span></div>

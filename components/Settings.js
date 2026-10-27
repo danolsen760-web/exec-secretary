@@ -19,7 +19,7 @@ export default function Settings({ ctx }) {
       <SettingsSection id="youth" isOpen={setOpen.has('youth')} onToggle={toggle} title="Youth interview rules" sub={data.settings.splitConfirmed === 'TRUE' ? 'Counselor split confirmed' : 'Counselor split not confirmed yet'}><YouthRules ctx={ctx} /></SettingsSection>
       <SettingsSection id="texts" isOpen={setOpen.has('texts')} onToggle={toggle} title="Text templates" sub="Confirmation, reminder, follow-up"><Templates ctx={ctx} /></SettingsSection>
       <SettingsSection id="rems" isOpen={setOpen.has('rems')} onToggle={toggle} title="My reminders" sub="When your phone reminds you"><Reminders ctx={ctx} /></SettingsSection>
-      <SettingsSection id="agendas" isOpen={setOpen.has('agendas')} onToggle={toggle} title="Agendas" sub="Drive folder, file names, links"><AgendaSettings ctx={ctx} /></SettingsSection>
+      <SettingsSection id="agendas" isOpen={setOpen.has('agendas')} onToggle={toggle} title="Agendas" sub="Drive folders, file names, email"><AgendaSettings ctx={ctx} /></SettingsSection>
       <SettingsSection id="data" isOpen={setOpen.has('data')} onToggle={toggle} title="Data and sign-in" sub="Backups and signing out"><DataSection /></SettingsSection>
       <p className="foot">Times use Arizona time.</p>
     </>
@@ -228,17 +228,48 @@ function Reminders({ ctx }) {
 }
 
 function AgendaSettings({ ctx }) {
-  const { f, set, save, busy } = useSettingsForm(ctx, ['agendaFolder', 'filePattern', 'councilSundays', 'callingsLink', 'calendarLink']);
+  const { f, set, save, busy } = useSettingsForm(ctx, ['bishopricFolder', 'councilFolder', 'filePattern', 'councilSundays', 'tplAgendaSubject', 'tplAgendaEmail', 'callingsLink', 'calendarLink']);
+  const [check, setCheck] = useState(null);
+  const [checking, setChecking] = useState(false);
+  async function test() {
+    setChecking(true); setCheck(null);
+    try { setCheck(await api('/api/bridge')); } catch (e) { setCheck({ error: e.message }); }
+    setChecking(false);
+  }
+  const folderLine = (label, r) => (
+    <div>
+      <div className="name">{label}</div>
+      {!r ? null : r.error ? <div className="err">{r.error}</div>
+        : <div className="sub">Folder: {r.folderName}<br />{r.latest ? <>Newest agenda: <a href={r.latest.url} target="_blank" rel="noopener">{r.latest.name}</a></> : 'No agenda Docs found in it yet'}</div>}
+    </div>
+  );
   return (
     <>
-      <label className="f">Drive folder for agendas (link)<input type="url" value={f.agendaFolder} placeholder="https://drive.google.com/drive/folders/…" onChange={e => set('agendaFolder', e.target.value)} /></label>
+      <label className="f">Bishopric Drive folder (link)<input type="url" value={f.bishopricFolder} placeholder="https://drive.google.com/drive/folders/…" onChange={e => set('bishopricFolder', e.target.value)} /></label>
+      <label className="f">Ward Council Drive folder (link)<input type="url" value={f.councilFolder} placeholder="https://drive.google.com/drive/folders/…" onChange={e => set('councilFolder', e.target.value)} /></label>
+      <div className="sub">The app saves new agendas in the "Agendas" folder inside each one.</div>
       <label className="f">File name<input type="text" value={f.filePattern} onChange={e => set('filePattern', e.target.value)} /></label>
-      <div className="legend"><code>{'{yy}'}</code> 26 · <code>{'{MMdd}'}</code> 1025 · <code>{'{meeting}'}</code> Bishopric or Council</div>
+      <div className="legend"><code>{'{yy}'}</code> 26 · <code>{'{MMdd}'}</code> 1101 · <code>{'{meeting}'}</code> Bishopric or Council</div>
       <label className="f">Ward Council Sundays of the month<input type="text" value={f.councilSundays} placeholder="2,4" onChange={e => set('councilSundays', e.target.value)} /></label>
+      <label className="f">Email subject<input type="text" value={f.tplAgendaSubject} onChange={e => set('tplAgendaSubject', e.target.value)} /></label>
+      <label className="f">Email message<textarea value={f.tplAgendaEmail} onChange={e => set('tplAgendaEmail', e.target.value)} /></label>
+      <div className="legend"><code>{'{meeting}'}</code> Bishopric Meeting · <code>{'{date}'}</code> Sunday, Nov 1 · <code>{'{link}'}</code> the agenda link · <code>{'{me}'}</code> your signature from Text templates</div>
       <label className="f">Callings spreadsheet (link)<input type="url" value={f.callingsLink} onChange={e => set('callingsLink', e.target.value)} /></label>
       <label className="f">Ward and Stake Calendar (link)<input type="url" value={f.calendarLink} onChange={e => set('calendarLink', e.target.value)} /></label>
-      <div className="sub">Used when agendas arrive in stage 3.</div>
       <div className="btns"><button className="btn primary" type="button" disabled={busy} onClick={() => save('Agenda settings saved')}>{busy ? 'Saving…' : 'Save'}</button></div>
+
+      <div className="box">
+        <div className="name">Google connection</div>
+        <div className="sub">Checks the bridge and both folders. Save any folder changes first.</div>
+        {check && (check.error ? <div className="err">{check.error}</div> : (
+          <div className="checkres">
+            <div className="sub">Connected as {check.email}</div>
+            {folderLine('Bishopric', check.folders.B)}
+            {folderLine('Ward Council', check.folders.W)}
+          </div>
+        ))}
+        <div className="btns"><button className="btn soft" type="button" disabled={checking} onClick={test}>{checking ? 'Checking…' : 'Test Google connection'}</button></div>
+      </div>
     </>
   );
 }

@@ -7,9 +7,12 @@ import Home from './Home';
 import Members from './Members';
 import Settings from './Settings';
 import FamilyEditor from './FamilyEditor';
+import Agendas from './Agendas';
+import { defaultSunday } from '@/lib/suggest';
 
 const VIEWS = [
   { key: 'home', label: 'Home', title: 'This week' },
+  { key: 'agendas', label: 'Agendas', title: 'Agenda Builder' },
   { key: 'people', label: 'Members', title: 'Members' },
   { key: 'setup', label: 'Settings', title: 'Settings' }
 ];
@@ -20,6 +23,7 @@ export default function App() {
   const [view, setView] = useState('home');
   const [setOpen, setSetOpen] = useState(() => new Set());
   const [editing, setEditing] = useState(null); // household id, '' for new, or null
+  const [agendaDate, setAgendaDate] = useState(() => defaultSunday());
   const [toastMsg, setToastMsg] = useState(null);
   const timer = useRef();
 
@@ -70,7 +74,7 @@ export default function App() {
     );
   }
 
-  const ctx = { data, setData, H, toast, go, openFamily: id => setEditing(id), setOpen, setSetOpen };
+  const ctx = { data, setData, H, toast, go, openFamily: id => setEditing(id), setOpen, setSetOpen, agendaDate };
   const setupLeft = (data.settings.splitConfirmed === 'TRUE' ? 0 : 1) + (data.settings.hoursConfirmed === 'TRUE' ? 0 : 1);
 
   return (
@@ -78,6 +82,7 @@ export default function App() {
       <Header title={current.title} date={H.today} />
       <main><div className="wrap">
         {view === 'home' && <Home ctx={ctx} />}
+        {view === 'agendas' && <Agendas ctx={ctx} date={agendaDate} setDate={setAgendaDate} />}
         {view === 'people' && <Members ctx={ctx} />}
         {view === 'setup' && <Settings ctx={ctx} />}
       </div></main>

@@ -30,3 +30,32 @@ The executive secretary app for the Cienega Ward. It runs on Next.js, hosted on 
 
 ### Updating later
 Upload the changed files to GitHub (or push them). Vercel redeploys automatically, and the link and home screen icon stay the same.
+
+## Agenda stage: Agenda Builder
+
+### 1. Database
+In Supabase, open **SQL Editor → New query**, paste all of `supabase/agendas.sql`, and click **Run**.
+
+### 2. Google bridge (lets the app make Docs and send email as you)
+1. Make a secret at https://generate-secret.vercel.app/32 and keep it handy.
+2. Go to script.google.com → **New project** and name it `Exec Secretary Bridge`.
+3. Replace the code with `google-bridge/Bridge.gs`, then paste your secret between the quotes on the `SECRET` line. Save.
+4. Choose **authorize** in the function menu, click **Run**, and allow access. (Choose **Advanced → Go to Exec Secretary Bridge** if Google warns you.)
+5. Go to **Deploy → New deployment**. Click the gear icon and choose **Web app**. Set **Execute as: Me** and **Who has access: Anyone**, then click **Deploy**.
+6. Copy the **Web app URL** (it ends in `/exec`).
+
+### 3. Vercel
+Add two environment variables:
+- `BRIDGE_URL`: the Web app URL
+- `BRIDGE_SECRET`: the same secret
+
+### 4. GitHub
+In the repo, go to **Add file → Upload files**, drag in everything inside the updated folder, and click **Commit changes**. Vercel redeploys on its own.
+
+### 5. Try it
+- In the app, open **Settings → Agendas** and tap **Test Google connection**. It should show both Agendas folders and the newest agenda in each.
+- Add attendee emails in **Settings → Meeting attendees**.
+- Open the **Agendas** tab, check the picks, and tap **Create**. Open the Doc to check it, then tap **Email link**.
+
+### Updating the bridge later
+In Apps Script, go to **Deploy → Manage deployments**, click the pencil icon, choose **New version**, and click **Deploy**. The URL stays the same.
