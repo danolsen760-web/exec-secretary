@@ -18,6 +18,8 @@ export default function Agendas({ ctx, date, setDate }) {
   const [busy, setBusy] = useState('');
   const [result, setResult] = useState(null);
   const [attOpen, setAttOpen] = useState(false);
+  const [skipOpen, setSkipOpen] = useState(false);
+  const [skipReason, setSkipReason] = useState('');
 
   const key = `${m}|${date}`;
   const other = m === 'B' ? 'W' : 'B';
@@ -98,6 +100,19 @@ export default function Agendas({ ctx, date, setDate }) {
   const thoughtOk = p.attendees.includes(p.thought);
   const meta = (map, id, verb) => (map[id] ? `Last ${verb} ${when(map[id])}` : `No ${verb === 'prayed' ? 'prayer' : 'thought'} recorded yet`);
 
+  const skippedRow = data.agendas.find(a => a.date === date && a.skipped);
+  const anyDoc = data.agendas.some(a => a.date === date && a.docUrl);
+  const pendingN = (data.pendingMarks || []).filter(x => x.meeting === m && x.date < date).length;
+  async function skip(on) {
+    setBusy('skip');
+    try {
+      ctx.setData(await api('/api/agenda/skip', { date, skip: on, reason: skipReason }));
+      setSkipOpen(false); setSkipReason('');
+      toast(on ? `Marked ${sundayLabel(date)} as no meeting` : 'Meetings are back on for this Sunday');
+    } catch (e) { toast(e.message, true); }
+    setBusy('');
+  }
+
   return (
     <>
       <div className="datebar card">
@@ -107,6 +122,13 @@ export default function Agendas({ ctx, date, setDate }) {
         <button className="btn ghost" type="button" aria-label="Next Sunday" onClick={() => { setDate(addDays(date, 7)); setResult(null); }}>›</button>
       </div>
 
+      {skippedRow ? (
+        <div className="card made">
+          <div><div className="ttl">No meeting this Sunday</div>
+            <div className="sub">{skippedRow.skipReason || 'Skipped'}. Next week's agenda will copy the last one, and the Thought/Training and any changes carry over to it.</div></div>
+          <div className="btns"><button className="btn ghost" type="button" disabled={!!busy} onClick={() => skip(false)}>{busy === 'skip' ? 'Saving…' : 'Undo, we are meeting'}</button></div>
+        </div>
+      ) : (<>
       {meetings.length === 2 && (
         <div className="seg" role="tablist">
           {meetings.map(k => {
@@ -170,8 +192,20 @@ export default function Agendas({ ctx, date, setDate }) {
         {!saved?.docUrl ? (
           <>
             <div className="sub">Copies last week's {MEETINGS[m].short} Doc, fills in these parts, and saves it to the Agendas folder. Everything else carries over.</div>
+            {pendingN > 0 && <div className="note">Also applies {pendingN} {pendingN === 1 ? 'change' : 'changes'} from Meeting Mode (items checked off, added, or reworded).</div>}
             <button className="btn primary big" type="button" disabled={!!busy || !thoughtOk} onClick={create}>
               {busy === 'create' ? 'Creating the Doc…' : `Create ${MEETINGS[m].short} agenda`}</button>
+            {!anyDoc && (skipOpen ? (
+              <div className="box">
+                <label className="f">Why there's no meeting (optional)
+                  <input type="text" value={skipReason} placeholder="Stake conference" onChange={e => setSkipReason(e.target.value)} /></label>
+                <div className="sub">{meetings.length === 2 ? 'Skips both Bishopric and Ward Council.' : 'Skips Bishopric meeting.'} Nothing is created, and next week picks up where this week left off.</div>
+                <div className="btns">
+                  <button className="btn ghost" type="button" onClick={() => setSkipOpen(false)}>Cancel</button>
+                  <button className="btn primary" type="button" disabled={!!busy} onClick={() => skip(true)}>{busy === 'skip' ? 'Saving…' : `Skip ${sundayLabel(date)}`}</button>
+                </div>
+              </div>
+            ) : <button className="link" type="button" style={{ justifySelf: 'center' }} onClick={() => setSkipOpen(true)}>No meeting this Sunday?</button>)}
           </>
         ) : (
           <>
@@ -192,10 +226,15 @@ export default function Agendas({ ctx, date, setDate }) {
           <div className="err">Couldn't find these lines in the Doc, so they weren't changed: {result.missing.join(', ')}. Check the wording in the Doc.</div>
         )}
         {result?.kind === 'created' && result.source && <div className="sub">Copied from {result.source}</div>}
+        {result?.kind === 'created' && result.carried > 0 && <div className="sub">Carried over {result.carried} {result.carried === 1 ? 'change' : 'changes'} from Meeting Mode.</div>}
+        {result?.kind === 'created' && result.notCarried?.length > 0 && (
+          <div className="err">Couldn't find these in last week's Doc, so they weren't changed: {result.notCarried.join('; ')}</div>
+        )}
         {result?.kind === 'sent' && result.noEmail?.length > 0 && (
           <div className="note">No email on file for {result.noEmail.join(', ')}. Add it in Settings → Meeting attendees.</div>
         )}
       </div>
+      </>)}
     </>
   );
 }

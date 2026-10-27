@@ -26,8 +26,8 @@ export default function Home({ ctx }) {
   const date = ctx.agendaDate;
   const agendaStatus = meetingsOn(date, data.settings).map(m => {
     const a = data.agendas.find(x => x.meeting === m && x.date === date);
-    const pill = a?.sentAt ? <span className="pill ok">Sent</span> : a?.docUrl ? <span className="pill warn">Created, not sent</span> : <span className="pill plain">Not created</span>;
-    return { m, pill, done: !!a?.sentAt };
+    const pill = a?.skipped ? <span className="pill plain">No meeting</span> : a?.sentAt ? <span className="pill ok">Sent</span> : a?.docUrl ? <span className="pill warn">Created, not sent</span> : <span className="pill plain">Not created</span>;
+    return { m, pill, done: !!a?.sentAt || !!a?.skipped };
   });
 
   return (

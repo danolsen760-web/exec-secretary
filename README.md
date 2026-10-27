@@ -59,3 +59,8 @@ In the repo, go to **Add file → Upload files**, drag in everything inside the 
 
 ### Updating the bridge later
 In Apps Script, go to **Deploy → Manage deployments**, click the pencil icon, choose **New version**, and click **Deploy**. The URL stays the same.
+
+## Meeting Mode + skip a Sunday
+1. **Database:** In Supabase's SQL Editor, run all of `supabase/meeting-mode.sql`.
+2. **Bridge:** Open your Apps Script project and copy your `const SECRET = …` line. Replace the code with the new `google-bridge/Bridge.gs`, paste your SECRET line back, and save. Then go to **Deploy → Manage deployments → ✏️ → New version → Deploy**.
+3. **GitHub:** Go to **Add file → Upload files**, drag in everything inside the updated folder, and click **Commit changes**.

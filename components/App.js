@@ -8,11 +8,13 @@ import Members from './Members';
 import Settings from './Settings';
 import FamilyEditor from './FamilyEditor';
 import Agendas from './Agendas';
+import Meeting from './Meeting';
 import { defaultSunday } from '@/lib/suggest';
 
 const VIEWS = [
   { key: 'home', label: 'Home', title: 'This week' },
   { key: 'agendas', label: 'Agendas', title: 'Agenda Builder' },
+  { key: 'meeting', label: 'Meeting', title: 'Meeting Mode' },
   { key: 'people', label: 'Members', title: 'Members' },
   { key: 'setup', label: 'Settings', title: 'Settings' }
 ];
@@ -83,6 +85,7 @@ export default function App() {
       <main><div className="wrap">
         {view === 'home' && <Home ctx={ctx} />}
         {view === 'agendas' && <Agendas ctx={ctx} date={agendaDate} setDate={setAgendaDate} />}
+        {view === 'meeting' && <Meeting ctx={ctx} />}
         {view === 'people' && <Members ctx={ctx} />}
         {view === 'setup' && <Settings ctx={ctx} />}
       </div></main>
