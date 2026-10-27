@@ -24,6 +24,7 @@ function doPost(e) {
       case 'createAgenda':  return json_(createAgenda_(body));
       case 'updateAgenda':  return json_(updateAgenda_(body));
       case 'readAgenda':    return json_(readAgenda_(body));
+      case 'findAgenda':    return json_(findAgenda_(body));
       case 'sendEmail':     return json_(sendEmail_(body));
       default:              return json_({ error: 'Unknown action: ' + body.action });
     }
@@ -167,6 +168,18 @@ function createAgenda_(b) {
   const copy = source.makeCopy(b.fileName, dest);
   const r = fill_(copy.getId(), b.fields, b.changes);
   return { docId: copy.getId(), docUrl: copy.getUrl(), docName: copy.getName(), reused: false, source: source.getName(), missing: r.missing, changes: r.changes };
+}
+
+/** Finds an existing agenda Doc for a date (one made by hand, or before the app). */
+function findAgenda_(b) {
+  const folder = agendasFolder_(b.folderUrl);
+  const docs = allDocs_(folder, 2);
+  const targetKey = String(b.date).slice(2, 4) + String(b.date).slice(5, 7) + String(b.date).slice(8, 10);
+  const kw = String(b.keyword || '').toLowerCase();
+  const f = docs.filter(function (d) { return d.getName() === b.fileName; })[0] ||
+    docs.filter(function (d) { return nameKey_(d.getName()) === targetKey && d.getName().toLowerCase().indexOf(kw) >= 0; })[0];
+  if (!f) return { notFound: true };
+  return { docId: f.getId(), docUrl: f.getUrl(), docName: f.getName() };
 }
 
 function updateAgenda_(b) {
