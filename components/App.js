@@ -10,11 +10,14 @@ import FamilyEditor from './FamilyEditor';
 import Agendas from './Agendas';
 import Meeting from './Meeting';
 import { defaultSunday } from '@/lib/suggest';
+import Interviews, { todoCounts } from './Interviews';
+import { BookSheet, TextSheet, ApptSheet, LinkSheet, TrackSheet } from './IvSheets';
 
 const VIEWS = [
   { key: 'home', label: 'Home', title: 'This week' },
   { key: 'agendas', label: 'Agendas', title: 'Agenda Builder' },
   { key: 'meeting', label: 'Meeting', title: 'Meeting Mode' },
+  { key: 'interviews', label: 'Interviews', title: 'Interviews' },
   { key: 'people', label: 'Members', title: 'Members' },
   { key: 'setup', label: 'Settings', title: 'Settings' }
 ];
@@ -27,6 +30,7 @@ export default function App() {
   const [editing, setEditing] = useState(null); // household id, '' for new, or null
   const [agendaDate, setAgendaDate] = useState(() => defaultSunday());
   const [toastMsg, setToastMsg] = useState(null);
+  const [sheet, setSheet] = useState(null); // interview pop-ups
   const timer = useRef();
 
   const load = useCallback(() => {
@@ -37,10 +41,10 @@ export default function App() {
 
   // Refresh when you come back to the app after it's been in the background.
   useEffect(() => {
-    const onShow = () => { if (document.visibilityState === 'visible' && editing === null) api('/api/data').then(setData).catch(() => {}); };
+    const onShow = () => { if (document.visibilityState === 'visible' && editing === null && !sheet) api('/api/data').then(setData).catch(() => {}); };
     document.addEventListener('visibilitychange', onShow);
     return () => document.removeEventListener('visibilitychange', onShow);
-  }, [editing]);
+  }, [editing, sheet]);
 
   const toast = useCallback((text, bad) => {
     clearTimeout(timer.current);
@@ -76,8 +80,20 @@ export default function App() {
     );
   }
 
-  const ctx = { data, setData, H, toast, go, openFamily: id => setEditing(id), setOpen, setSetOpen, agendaDate };
+  const personName = a => {
+    if (a.childId) {
+      const c = data.children.find(x => x.id === a.childId);
+      const h = c && data.households.find(x => x.id === c.householdId);
+      return c ? `${c.first} ${h ? h.family : ''}`.trim() : '';
+    }
+    if (a.trackId) return (data.tracks.find(t => t.id === a.trackId) || {}).name || '';
+    return a.eventTitle || '';
+  };
+  const ctx = { data, setData, H, toast, go, openFamily: id => setEditing(id), setOpen, setSetOpen, agendaDate, openSheet: setSheet, personName };
   const setupLeft = (data.settings.splitConfirmed === 'TRUE' ? 0 : 1) + (data.settings.hoursConfirmed === 'TRUE' ? 0 : 1);
+  const t = todoCounts(data);
+  const ivBadge = t.remind.length + t.confirm.length + t.follow.length + t.came.length;
+  const closeSheet = () => setSheet(null);
 
   return (
     <>
@@ -86,6 +102,7 @@ export default function App() {
         {view === 'home' && <Home ctx={ctx} />}
         {view === 'agendas' && <Agendas ctx={ctx} date={agendaDate} setDate={setAgendaDate} />}
         {view === 'meeting' && <Meeting ctx={ctx} />}
+        {view === 'interviews' && <Interviews ctx={ctx} />}
         {view === 'people' && <Members ctx={ctx} />}
         {view === 'setup' && <Settings ctx={ctx} />}
       </div></main>
@@ -95,11 +112,17 @@ export default function App() {
           <button key={v.key} type="button" aria-current={view === v.key ? 'page' : undefined} onClick={() => go(v.key)}>
             <Icon name={v.key} />{v.label}
             {v.key === 'setup' && setupLeft > 0 && <span className="dot">{setupLeft}</span>}
+            {v.key === 'interviews' && ivBadge > 0 && <span className="dot">{ivBadge}</span>}
           </button>
         ))}
       </div></nav>
 
       {editing !== null && <FamilyEditor ctx={ctx} householdId={editing} onClose={() => setEditing(null)} />}
+      {sheet?.type === 'book' && <BookSheet key={sheet.appt?.id || sheet.person?.key} ctx={ctx} person={sheet.person} appt={sheet.appt} onClose={closeSheet} />}
+      {sheet?.type === 'text' && <TextSheet key={`${sheet.appt.id}-${sheet.kind}`} ctx={ctx} appt={sheet.appt} kind={sheet.kind} onClose={closeSheet} />}
+      {sheet?.type === 'appt' && <ApptSheet key={sheet.appt.id} ctx={ctx} appt={sheet.appt} onClose={closeSheet} />}
+      {sheet?.type === 'link' && <LinkSheet ctx={ctx} event={sheet.event} onClose={closeSheet} />}
+      {sheet?.type === 'track' && <TrackSheet ctx={ctx} household={sheet.household} track={sheet.track} onClose={closeSheet} />}
       {toastMsg && <div className={'toast' + (toastMsg.bad ? ' bad' : '')} role="status">{toastMsg.text}</div>}
     </>
   );

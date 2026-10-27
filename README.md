@@ -64,3 +64,17 @@ In Apps Script, go to **Deploy → Manage deployments**, click the pencil icon, 
 1. **Database:** In Supabase's SQL Editor, run all of `supabase/meeting-mode.sql`.
 2. **Bridge:** Open your Apps Script project and copy your `const SECRET = …` line. Replace the code with the new `google-bridge/Bridge.gs`, paste your SECRET line back, and save. Then go to **Deploy → Manage deployments → ✏️ → New version → Deploy**.
 3. **GitHub:** Go to **Add file → Upload files**, drag in everything inside the updated folder, and click **Commit changes**.
+
+## Interviews
+1. **Database:** In Supabase's SQL Editor, run all of `supabase/interviews.sql`.
+2. **Bridge:**
+   - Copy your `const SECRET = …` line.
+   - Replace the code with the new `google-bridge/Bridge.gs`, paste your SECRET line back, and save.
+   - Choose **authorize** and click **Run**. Google asks again because the app now uses Calendar. Allow it.
+   - Go to **Deploy → Manage deployments → ✏️ → New version → Deploy**.
+3. **Vercel:** Add `CRON_SECRET` (any long random string) for the Monday backup to Drive.
+4. **GitHub:** Go to **Add file → Upload files**, drag in everything inside the updated folder, and click **Commit changes**.
+5. **In the app:**
+   - In **Settings → Interviewers and hours**, choose each person's Google Calendar, check their times, and tap **Save**.
+   - In **Settings → My reminders**, tap **Turn on phone reminders**.
+   - In **Settings → Data**, tap **Back up to Drive now** to test the backup.

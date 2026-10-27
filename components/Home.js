@@ -2,6 +2,7 @@
 import { IvTag, DuePill } from './bits';
 import { MEETINGS, sundayLabel } from '@/lib/names';
 import { meetingsOn } from '@/lib/suggest';
+import { todoCounts } from './Interviews';
 
 export default function Home({ ctx }) {
   const { data, H, go } = ctx;
@@ -37,6 +38,20 @@ export default function Home({ ctx }) {
           {agendaStatus.map(x => <div className="agrow" key={x.m}><span className="name">{MEETINGS[x.m].short}</span>{x.pill}</div>)}</div>
         {!agendaStatus.every(x => x.done) && <button className="btn primary" type="button" onClick={() => go('agendas')}>Open Agenda Builder</button>}
       </div>
+
+      {(() => {
+        const t = todoCounts(data);
+        const lines = [[t.remind.length, 'reminders to send'], [t.confirm.length, 'confirmations to send'], [t.follow.length, 'waiting on a reply'], [t.came.length, 'to mark done or missed']].filter(x => x[0]);
+        const upcoming = data.appointments.filter(a => a.status === 'scheduled' && new Date(a.startsAt) > new Date()).length;
+        return (
+          <div className="card made">
+            <div><div className="mini">Interviews</div>
+              {lines.length ? lines.map(([n, l]) => <div className="agrow" key={l}><span className="name">{n} {l}</span></div>)
+                : <div className="sub">Nothing to do right now · {upcoming} booked</div>}</div>
+            <button className={'btn ' + (lines.length ? 'primary' : 'ghost')} type="button" onClick={() => go('interviews')}>Open Interviews</button>
+          </div>
+        );
+      })()}
 
       <div className="stats">
         <div className="stat bad"><b>{over}</b><span>Youth overdue</span></div>

@@ -2,6 +2,8 @@
 import { useState } from 'react';
 import { MONTHS, parseDate, md } from '@/lib/youth';
 import { IvTag, DuePill, Caret } from './bits';
+import { people } from '@/lib/ivclient';
+import { phxDate, phxTime, dayShort, time12 } from '@/lib/time';
 
 export default function Members({ ctx }) {
   const { data, H, openFamily } = ctx;
@@ -32,7 +34,7 @@ export default function Members({ ctx }) {
       </div>
 
       {list.map(h => (
-        <Family key={h.id} h={h} H={H} isOpen={open.has(h.id)} onToggle={o => toggle(h.id, o)} onEdit={() => openFamily(h.id)} />
+        <Family key={h.id} ctx={ctx} h={h} H={H} isOpen={open.has(h.id)} onToggle={o => toggle(h.id, o)} onEdit={() => openFamily(h.id)} />
       ))}
       {!list.length && (
         <div className="card pad sub">
@@ -43,7 +45,7 @@ export default function Members({ ctx }) {
   );
 }
 
-function Family({ h, H, isOpen, onToggle, onEdit }) {
+function Family({ ctx, h, H, isOpen, onToggle, onEdit }) {
   const kids = H.kidsOf(h.id);
   const youthCount = kids.filter(c => { const y = H.youthInfo(c); return y && y.youth; }).length;
   const parents = [1, 2].filter(n => h[`p${n}First`]);
@@ -84,18 +86,54 @@ function Family({ h, H, isOpen, onToggle, onEdit }) {
           {kids.length > 0 && (
             <div>
               <div className="mini">Children</div>
-              {kids.map(c => <Child key={c.id} c={c} H={H} />)}
+              {kids.map(c => <Child key={c.id} c={c} H={H} ctx={ctx} />)}
             </div>
           )}
-          <div className="btns"><button className="btn soft" type="button" onClick={onEdit}>Edit family</button></div>
+          <Adults ctx={ctx} h={h} />
+          <div className="btns">
+            <button className="btn ghost" type="button" onClick={() => ctx.openSheet({ type: 'track', household: h })}>+ Add interview</button>
+            <button className="btn soft" type="button" onClick={onEdit}>Edit family</button>
+          </div>
         </div>
       )}
     </details>
   );
 }
 
-function Child({ c, H }) {
+function ScheduleBit({ ctx, person }) {
+  if (!person) return null;
+  if (person.appt) return <span className="pill ok" style={{ cursor: 'pointer' }} onClick={() => ctx.openSheet({ type: 'appt', appt: person.appt })}>{dayShort(phxDate(person.appt.startsAt))} · {time12(phxTime(person.appt.startsAt))}</span>;
+  if (person.status === 'later') return null;
+  return <button className="btn soft" type="button" onClick={() => ctx.openSheet({ type: 'book', person })}>Schedule</button>;
+}
+
+function Adults({ ctx, h }) {
+  const { data, H } = ctx;
+  const tracks = data.tracks.filter(t => t.householdId === h.id && t.active !== false);
+  if (!tracks.length) return null;
+  const ppl = people(data, H);
+  return (
+    <div>
+      <div className="mini">Adult interviews</div>
+      {tracks.map(t => {
+        const p = ppl.find(x => x.trackId === t.id);
+        return (
+          <div className="person" key={t.id}>
+            <div className="prow"><span className="name">{t.name}</span><button className="link" type="button" onClick={() => ctx.openSheet({ type: 'track', household: h, track: t })}>Edit</button></div>
+            <div className="track"><div>
+              <div className="det">{t.type} · with <IvTag id={t.interviewer} H={H} /></div>
+              <div>{p && p.due && <span className={'pill ' + (p.status === 'over' ? 'bad' : p.status === 'soon' ? 'warn' : 'plain')}>Due {md(p.due)}</span>}</div>
+            </div><ScheduleBit ctx={ctx} person={p} /></div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function Child({ c, H, ctx }) {
   const y = H.youthInfo(c);
+  const person = y && y.youth ? people(ctx.data, H).find(p => p.childId === c.id) : null;
   const last = c.lastInterview ? parseDate(c.lastInterview) : null;
   return (
     <div className="person">
@@ -108,7 +146,7 @@ function Child({ c, H }) {
           <div className="track"><div>
             <div className="det">Youth interview · next with <IvTag id={y.next} H={H} /></div>
             <div><DuePill y={y} /></div>
-          </div></div>
+          </div><ScheduleBit ctx={ctx} person={person} /></div>
           {last && <div className="det">Last: {md(last)}, {last.getFullYear()}{c.lastWith ? ` with ${H.short(c.lastWith)}` : ''}</div>}
           {c.override && c.override !== 'auto' && (
             <div className="det"><span className="pill">Override: {c.override === 'bishop' ? 'Bishop only' : `Always ${H.short(c.override)}`}</span></div>

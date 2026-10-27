@@ -1,7 +1,8 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { DAYS, TITLES } from '@/lib/youth';
+import { dayShort } from '@/lib/time';
 import { IvTag, Caret, saver } from './bits';
 
 export default function Settings({ ctx }) {
@@ -13,14 +14,14 @@ export default function Settings({ ctx }) {
   return (
     <>
       <SettingsSection id="people" isOpen={setOpen.has('people')} onToggle={toggle} title="Meeting attendees" sub={`${active.length} active · callings, agenda titles, emails`}><Leaders ctx={ctx} /></SettingsSection>
-      <SettingsSection id="ivr" isOpen={setOpen.has('ivr')} onToggle={toggle} title="Interviewers and hours" sub="Days, times, and where they meet">
+      <SettingsSection id="ivr" isOpen={setOpen.has('ivr')} onToggle={toggle} title="Interviewers and hours" sub="Calendars, times, days off">
         {data.interviewers.map(iv => <InterviewerForm key={iv.id} iv={iv} ctx={ctx} />)}
       </SettingsSection>
       <SettingsSection id="youth" isOpen={setOpen.has('youth')} onToggle={toggle} title="Youth interview rules" sub={data.settings.splitConfirmed === 'TRUE' ? 'Counselor split confirmed' : 'Counselor split not confirmed yet'}><YouthRules ctx={ctx} /></SettingsSection>
       <SettingsSection id="texts" isOpen={setOpen.has('texts')} onToggle={toggle} title="Text templates" sub="Confirmation, reminder, follow-up"><Templates ctx={ctx} /></SettingsSection>
       <SettingsSection id="rems" isOpen={setOpen.has('rems')} onToggle={toggle} title="My reminders" sub="When your phone reminds you"><Reminders ctx={ctx} /></SettingsSection>
       <SettingsSection id="agendas" isOpen={setOpen.has('agendas')} onToggle={toggle} title="Agendas" sub="Drive folders, file names, email"><AgendaSettings ctx={ctx} /></SettingsSection>
-      <SettingsSection id="data" isOpen={setOpen.has('data')} onToggle={toggle} title="Data and sign-in" sub="Backups and signing out"><DataSection /></SettingsSection>
+      <SettingsSection id="data" isOpen={setOpen.has('data')} onToggle={toggle} title="Data and sign-in" sub="Backups and signing out"><DataSection ctx={ctx} /></SettingsSection>
       <p className="foot">Times use Arizona time.</p>
     </>
   );
@@ -104,16 +105,41 @@ function LeaderForm({ l, ctx, onDone }) {
 }
 
 /* ---------- Interviewers ---------- */
+let calendarCache = null;
+function useCalendars() {
+  const [cals, setCals] = useState(calendarCache);
+  const [err, setErr] = useState('');
+  useEffect(() => {
+    if (calendarCache) return;
+    api('/api/calendars').then(r => { calendarCache = r.calendars; setCals(r.calendars); }).catch(e => setErr(e.message));
+  }, []);
+  return { cals, err };
+}
+
 function InterviewerForm({ iv, ctx }) {
   const { data, H } = ctx;
-  const [f, setF] = useState({ ...iv });
+  const { cals, err } = useCalendars();
+  const [f, setF] = useState(() => ({
+    id: iv.id, leaderId: iv.leaderId, calendarId: iv.calendarId || '', calendarName: iv.calendarName || '',
+    windows: data.windows.filter(w => w.interviewerId === iv.id)
+      .sort((a, b) => DAYS.indexOf(a.day) - DAYS.indexOf(b.day) || a.startTime.localeCompare(b.startTime))
+      .map(w => ({ day: w.day, startTime: w.startTime, endTime: w.endTime, slotMinutes: String(w.slotMinutes), place: w.place }))
+  }));
   const [busy, setBusy] = useState(false);
+  const [offDate, setOffDate] = useState('');
   const run = saver(ctx);
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const setW = (i, k, v) => setF(p => ({ ...p, windows: p.windows.map((w, j) => (j === i ? { ...w, [k]: v } : w)) }));
   const active = data.leaders.filter(l => l.active !== false || l.id === iv.leaderId);
+  const daysOff = data.daysOff.filter(d => d.interviewerId === iv.id).sort((a, b) => a.date.localeCompare(b.date));
   async function save() {
-    if (f.startTime >= f.endTime) return ctx.toast('The end time needs to be after the start time.', true);
+    for (const w of f.windows) if (w.startTime >= w.endTime) return ctx.toast(`On ${w.day}, the end time needs to be after the start time.`, true);
     await run(setBusy, () => api('/api/interviewers', f), `Saved ${H.short(f.leaderId)}'s interview hours`);
+  }
+  async function dayOff(date, off) {
+    if (!date) return;
+    await run(setBusy, () => api('/api/interviews/dayoff', { interviewerId: iv.id, date, off }), off ? 'Day off added' : 'Day off removed');
+    setOffDate('');
   }
   return (
     <div className="box">
@@ -123,16 +149,35 @@ function InterviewerForm({ iv, ctx }) {
           {active.map(l => <option key={l.id} value={l.id}>{l.first} {l.last} ({l.calling})</option>)}
         </select>
       </label>
-      <label className="f">Google Calendar name<input type="text" value={f.calendarName} onChange={e => set('calendarName', e.target.value)} /></label>
-      <label className="f">Where they meet<input type="text" value={f.place} onChange={e => set('place', e.target.value)} /></label>
-      <label className="f">Day<select value={f.day} onChange={e => set('day', e.target.value)}>{DAYS.map(d => <option key={d}>{d}</option>)}</select></label>
-      <div className="two">
-        <label className="f">From<input type="time" value={f.startTime} onChange={e => set('startTime', e.target.value)} /></label>
-        <label className="f">To<input type="time" value={f.endTime} onChange={e => set('endTime', e.target.value)} /></label>
-      </div>
-      <label className="f">Minutes per interview<input type="number" min="5" max="120" step="5" value={f.slotMinutes} onChange={e => set('slotMinutes', e.target.value)} /></label>
-      <div className="sub">The calendar connects in stage 2. Use the calendar's exact name.</div>
+      <label className="f">Google Calendar to book into
+        {cals ? (
+          <select value={f.calendarId} onChange={e => { const c = cals.find(x => x.id === e.target.value); setF(p => ({ ...p, calendarId: e.target.value, calendarName: c ? c.name : '' })); }}>
+            <option value="">Choose a calendar</option>
+            {cals.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        ) : <div className="sub">{err ? `Couldn't load your calendars: ${err}` : 'Loading your calendars…'}{f.calendarName ? ` (now: ${f.calendarName})` : ''}</div>}
+      </label>
+      <div className="mini">When they interview</div>
+      {f.windows.map((w, i) => (
+        <div className="windowrow" key={i}>
+          <label className="f">Day<select value={w.day} onChange={e => setW(i, 'day', e.target.value)}>{DAYS.map(d => <option key={d}>{d}</option>)}</select></label>
+          <label className="f">Minutes each<input type="number" min="5" max="120" step="5" value={w.slotMinutes} onChange={e => setW(i, 'slotMinutes', e.target.value)} /></label>
+          <label className="f">From<input type="time" value={w.startTime} onChange={e => setW(i, 'startTime', e.target.value)} /></label>
+          <label className="f">To<input type="time" value={w.endTime} onChange={e => setW(i, 'endTime', e.target.value)} /></label>
+          <label className="f full">Where<input type="text" value={w.place} onChange={e => setW(i, 'place', e.target.value)} /></label>
+          <button className="link full" type="button" onClick={() => setF(p => ({ ...p, windows: p.windows.filter((_, j) => j !== i) }))}>Remove this time</button>
+        </div>
+      ))}
+      <button className="btn ghost" type="button" onClick={() => setF(p => ({ ...p, windows: [...p.windows, { day: 'Sun', startTime: '09:00', endTime: '10:00', slotMinutes: '15', place: p.windows[0]?.place || '' }] }))}>+ Add another time</button>
       <div className="btns"><button className="btn primary" type="button" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save'}</button></div>
+
+      <div className="mini">Days off</div>
+      {daysOff.length === 0 && <div className="sub">None coming up. Interviews are on for every time above.</div>}
+      {daysOff.map(d => (
+        <div className="prow" key={d.date}><span>{dayShort(d.date)}</span><button className="link" type="button" disabled={busy} onClick={() => dayOff(d.date, false)}>Remove</button></div>
+      ))}
+      <div className="pick"><input type="date" aria-label="Add a day off" value={offDate} onChange={e => setOffDate(e.target.value)} />
+        <button className="swap" type="button" disabled={!offDate || busy} onClick={() => dayOff(offDate, true)}>Add day off</button></div>
     </div>
   );
 }
@@ -206,23 +251,36 @@ function Templates({ ctx }) {
   );
 }
 
-const REMINDERS = [['remAgendas', 'Create and send agendas'], ['remReminders', 'Interview reminder texts'], ['remFill', "Fill next Sunday's calendars"], ['remConfirm', 'Confirm who came']];
+const REMINDERS = [['remAgendas', 'Create and send agendas'], ['remReminders', 'Interview reminder texts (for Sunday)'], ['remReminders2', 'Interview reminder texts (for Wednesday)'], ['remFill', "Fill next week's interview calendars"], ['remConfirm', 'Confirm who came']];
 function Reminders({ ctx }) {
   const { f, set, save, busy } = useSettingsForm(ctx, [...REMINDERS.flatMap(([k]) => [`${k}Day`, `${k}Time`]), 'followUpDays']);
+  const [syncing, setSyncing] = useState(false);
+  const on = !!ctx.data.settings.reminderIds && ctx.data.settings.reminderIds !== '{}';
+  async function sync(off) {
+    if (!off && !(await save())) return;
+    setSyncing(true);
+    try { const r = await api('/api/reminders', { off }); ctx.setData(r.data); ctx.toast(off ? 'Phone reminders turned off' : `Added ${r.count} weekly ${r.count === 1 ? 'reminder' : 'reminders'} to your Google Calendar`); }
+    catch (e) { ctx.toast(e.message, true); }
+    setSyncing(false);
+  }
   return (
     <>
       {REMINDERS.map(([k, label]) => (
         <div className="box" key={k}>
           <div className="name">{label}</div>
           <div className="two">
-            <select aria-label={`${label} day`} value={f[`${k}Day`]} onChange={e => set(`${k}Day`, e.target.value)}>{DAYS.map(d => <option key={d}>{d}</option>)}</select>
-            <input type="time" aria-label={`${label} time`} value={f[`${k}Time`]} onChange={e => set(`${k}Time`, e.target.value)} />
+            <select aria-label={`${label} day`} value={f[`${k}Day`]} onChange={e => set(`${k}Day`, e.target.value)}>
+              <option value="off">Off</option>{DAYS.map(d => <option key={d}>{d}</option>)}</select>
+            <input type="time" aria-label={`${label} time`} value={f[`${k}Time`]} disabled={f[`${k}Day`] === 'off'} onChange={e => set(`${k}Time`, e.target.value)} />
           </div>
         </div>
       ))}
       <label className="f">Follow up when there's no reply after (days)<input type="number" min="1" max="14" value={f.followUpDays} onChange={e => set('followUpDays', e.target.value)} /></label>
-      <div className="sub">These start sending in stage 2.</div>
-      <div className="btns"><button className="btn primary" type="button" disabled={busy} onClick={() => save('Reminder times saved')}>{busy ? 'Saving…' : 'Save'}</button></div>
+      <div className="sub">The app adds these as weekly events on your own Google Calendar, so your phone notifies you at that time. After changing a time, tap the button again.</div>
+      <div className="btns">
+        {on && <button className="btn ghost" type="button" disabled={syncing || busy} onClick={() => sync(true)}>Turn off</button>}
+        <button className="btn primary" type="button" disabled={syncing || busy} onClick={() => sync(false)}>{syncing ? 'Updating your calendar…' : on ? 'Save and update reminders' : 'Turn on phone reminders'}</button>
+      </div>
     </>
   );
 }
@@ -274,15 +332,23 @@ function AgendaSettings({ ctx }) {
   );
 }
 
-function DataSection() {
+function DataSection({ ctx }) {
+  const [busy, setBusy] = useState(false);
+  async function backup() {
+    setBusy(true);
+    try { await api('/api/backup/drive', {}); ctx.setData(await api('/api/data')); ctx.toast('Backup saved to Google Drive'); }
+    catch (e) { ctx.toast(e.message, true); }
+    setBusy(false);
+  }
   return (
     <>
       <div className="kv"><span>Your data</span><span>Stored in your Supabase project</span></div>
-      <div className="kv"><span>Backups</span><span>Download a copy any time. Automatic weekly backups to Google Drive come in stage 2.</span></div>
+      <div className="kv"><span>Weekly backup</span><span>Mondays to "Exec Secretary Backups" in your Google Drive, keeping the last 12<br />Last: {ctx.data.settings.lastBackup || 'None yet'}</span></div>
       <div className="btns">
         <a className="btn ghost" href="/api/backup">Download a backup</a>
-        <form method="post" action="/api/logout"><button className="btn danger" type="submit">Sign out</button></form>
+        <button className="btn soft" type="button" disabled={busy} onClick={backup}>{busy ? 'Backing up…' : 'Back up to Drive now'}</button>
       </div>
+      <form method="post" action="/api/logout" className="btns"><button className="btn danger" type="submit">Sign out</button></form>
     </>
   );
 }

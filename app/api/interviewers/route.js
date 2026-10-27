@@ -1,5 +1,5 @@
 import { route } from '@/lib/auth';
-import { saveInterviewer } from '@/lib/data';
+import { saveInterviewerFull } from '@/lib/interviews';
 
 export const dynamic = 'force-dynamic';
-export const POST = route(body => saveInterviewer(body));
+export const POST = route(body => saveInterviewerFull(body));

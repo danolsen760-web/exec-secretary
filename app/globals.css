@@ -20,7 +20,7 @@ h1{font-family:var(--display);font-weight:600;font-size:1.2rem;margin:0}
 main .wrap{padding-block:14px calc(84px + env(safe-area-inset-bottom,0px));display:grid;gap:12px}
 main .wrap>*{min-width:0}
 .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
-.tabbar .wrap{display:grid;grid-template-columns:repeat(5,1fr);padding-block:4px}
+.tabbar .wrap{display:grid;grid-template-columns:repeat(6,1fr);padding-block:4px}
 .tabbar button{font:inherit;font-size:.7rem;font-weight:600;border:0;background:transparent;color:var(--muted);display:grid;justify-items:center;gap:2px;padding:6px 0;cursor:pointer;position:relative}
 .tabbar svg{width:22px;height:22px}
 .tabbar button[aria-current="page"]{color:var(--accent)}
@@ -188,3 +188,24 @@ a.btn{text-decoration:none;display:inline-block;text-align:center}
 .savebar .sub{flex:1;min-width:0}
 .savebar b{color:var(--fg)}
 .pill.new{background:var(--new);color:var(--surface)}
+
+/* interviews */
+.tabbar button{font-size:.62rem}
+.task{padding:12px 14px;display:grid;gap:8px}
+.task .head{display:flex;gap:10px;align-items:flex-start}
+.task .head>div{flex:1;min-width:0}
+.task .rows .row{padding-inline:0}
+.icon{flex:none;width:30px;height:30px;border-radius:8px;display:grid;place-items:center;font-size:.85rem;font-weight:700;background:var(--accent-soft);color:var(--accent)}
+.icon.g{background:var(--ok-soft);color:var(--ok)} .icon.y{background:var(--warn-soft);color:var(--warn)} .icon.r{background:var(--bad-soft);color:var(--bad)}
+.btn.okb{background:var(--ok-soft);color:var(--ok)}
+.group{padding:4px 14px 8px}
+.group .row{padding-inline:0}
+.grouph{font-size:.85rem;margin:12px 0 2px;display:flex;justify-content:space-between}
+.dayblock{display:grid;gap:6px;padding-top:4px}
+.slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:6px}
+.slots .chip{text-align:center;padding:7px 4px}
+.chip:disabled{opacity:.35;text-decoration:line-through;cursor:default}
+.stack{display:grid;gap:8px}
+.stickybtn{position:sticky;bottom:0;box-shadow:0 -8px 16px var(--surface)}
+.windowrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;background:var(--surface);border-radius:8px;padding:8px}
+.windowrow .full{grid-column:1/-1}

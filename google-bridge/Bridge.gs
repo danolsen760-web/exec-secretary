@@ -25,6 +25,13 @@ function doPost(e) {
       case 'updateAgenda':  return json_(updateAgenda_(body));
       case 'readAgenda':    return json_(readAgenda_(body));
       case 'findAgenda':    return json_(findAgenda_(body));
+      case 'listCalendars': return json_(listCalendars_());
+      case 'events':        return json_(events_(body));
+      case 'createEvent':   return json_(createEvent_(body));
+      case 'updateEvent':   return json_(updateEvent_(body));
+      case 'deleteEvent':   return json_(deleteEvent_(body));
+      case 'syncReminders': return json_(syncReminders_(body));
+      case 'saveBackup':    return json_(saveBackup_(body));
       case 'sendEmail':     return json_(sendEmail_(body));
       default:              return json_({ error: 'Unknown action: ' + body.action });
     }
@@ -41,6 +48,7 @@ function doGet() {
 function authorize() {
   DriveApp.getRootFolder();
   MailApp.getRemainingDailyQuota();
+  CalendarApp.getDefaultCalendar();
   // DocumentApp permission is requested automatically because fill_() uses it.
   Logger.log('Authorized as ' + Session.getEffectiveUser().getEmail());
 }
@@ -400,6 +408,102 @@ function applyChanges_(body, ch) {
     if (editItem_(body, e.text, e.newText)) res.edited++; else res.notFound.push(e.text);
   });
   return res;
+}
+
+/* ------------------------------------------------------------------ */
+/* Calendars (interviews + your phone reminders)                       */
+/* ------------------------------------------------------------------ */
+
+function listCalendars_() {
+  return { calendars: CalendarApp.getAllCalendars().map(function (c) {
+    return { id: c.getId(), name: c.getName() };
+  }) };
+}
+
+function cal_(id) {
+  const c = CalendarApp.getCalendarById(id);
+  if (!c) throw new Error('Couldn\'t open that Google Calendar. Check it in Settings → Interviewers and hours.');
+  return c;
+}
+
+/** Events between two times: [{ id, title, start, end, allDay }] (ISO times). */
+function events_(b) {
+  const out = {};
+  (b.calendarIds || []).forEach(function (id) {
+    out[id] = cal_(id).getEvents(new Date(b.from), new Date(b.to)).map(function (e) {
+      return { id: e.getId(), title: e.getTitle(), start: e.getStartTime().toISOString(), end: e.getEndTime().toISOString(), allDay: e.isAllDayEvent() };
+    });
+  });
+  return { events: out };
+}
+
+function createEvent_(b) {
+  const e = cal_(b.calendarId).createEvent(b.title, new Date(b.start), new Date(b.end), { location: b.location || '', description: b.description || '' });
+  return { eventId: e.getId() };
+}
+
+function updateEvent_(b) {
+  const e = cal_(b.calendarId).getEventById(b.eventId);
+  if (!e) return { notFound: true };
+  e.setTime(new Date(b.start), new Date(b.end));
+  if (b.title) e.setTitle(b.title);
+  return { ok: true };
+}
+
+function deleteEvent_(b) {
+  const e = cal_(b.calendarId).getEventById(b.eventId);
+  if (e) e.deleteEvent();
+  return { ok: true };
+}
+
+/**
+ * Weekly reminders on your own calendar, so your phone notifies you.
+ * items: [{ key, title, day: 'Sat', time: '18:00', description }], old: { key: seriesId }
+ */
+function syncReminders_(b) {
+  const cal = CalendarApp.getDefaultCalendar();
+  const old = b.old || {};
+  Object.keys(old).forEach(function (k) {
+    try { const s = cal.getEventSeriesById(old[k]); if (s) s.deleteEventSeries(); } catch (e) { /* already gone */ }
+  });
+  const days = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const wk = [CalendarApp.Weekday.SUNDAY, CalendarApp.Weekday.MONDAY, CalendarApp.Weekday.TUESDAY, CalendarApp.Weekday.WEDNESDAY,
+    CalendarApp.Weekday.THURSDAY, CalendarApp.Weekday.FRIDAY, CalendarApp.Weekday.SATURDAY];
+  const ids = {};
+  (b.items || []).forEach(function (it) {
+    const dow = days[it.day];
+    if (dow == null || !/^\d\d:\d\d$/.test(it.time)) return;
+    // First occurrence, in Arizona time (UTC-7, no daylight saving)
+    const now = new Date();
+    const az = new Date(now.getTime() - 7 * 3600 * 1000);
+    let d = new Date(Date.UTC(az.getUTCFullYear(), az.getUTCMonth(), az.getUTCDate()));
+    while (d.getUTCDay() !== dow) d = new Date(d.getTime() + 86400000);
+    const ymd = d.toISOString().slice(0, 10);
+    const start = new Date(ymd + 'T' + it.time + ':00-07:00');
+    const end = new Date(start.getTime() + 15 * 60000);
+    const series = cal.createEventSeries(it.title, start, end, CalendarApp.newRecurrence().addWeeklyRule().onlyOnWeekday(wk[dow]), { description: it.description || '' });
+    series.removeAllReminders();
+    series.addPopupReminder(0);
+    ids[it.key] = series.getId();
+  });
+  return { ids: ids };
+}
+
+/* ------------------------------------------------------------------ */
+/* Backups                                                             */
+/* ------------------------------------------------------------------ */
+
+function saveBackup_(b) {
+  const name = 'Exec Secretary Backups';
+  const it = DriveApp.getFoldersByName(name);
+  const folder = it.hasNext() ? it.next() : DriveApp.createFolder(name);
+  folder.createFile(b.fileName, b.content, MimeType.PLAIN_TEXT);
+  const files = [];
+  const fi = folder.getFiles();
+  while (fi.hasNext()) files.push(fi.next());
+  files.sort(function (a, c) { return c.getDateCreated() - a.getDateCreated(); })
+    .slice(12).forEach(function (f) { f.setTrashed(true); });
+  return { ok: true, folderUrl: folder.getUrl() };
 }
 
 /* ------------------------------------------------------------------ */
