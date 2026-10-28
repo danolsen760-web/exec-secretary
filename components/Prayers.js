@@ -38,8 +38,8 @@ export default function Prayers({ ctx, P }) {
       {!P.members.length && (
         <div className="card made">
           <div><div className="ttl">Import your ward list</div>
-            <div className="sub">Suggestions come from the LCR member list: ages, baptism, and phone numbers. Your past year of speakers and prayers is already loaded ({data.sacramentHistory.length} entries).</div></div>
-          <button className="btn primary" type="button" onClick={() => openSheet({ type: 'prImport' })}>Import ward list</button>
+            <div className="sub">Run the LCR import on the Members tab one more time. From now on it fills in both your youth families and this ward list (ages, baptism, phones). Your past year of speakers and prayers is already loaded ({data.sacramentHistory.length} entries).</div></div>
+          <button className="btn primary" type="button" onClick={() => openSheet({ type: 'import' })}>Open the LCR import</button>
         </div>
       )}
       {P.members.length > 0 && unmatched.length > 0 && (
@@ -81,7 +81,7 @@ export default function Prayers({ ctx, P }) {
         <div className="pmore">
           <button className="btn ghost" type="button" onClick={() => openSheet({ type: 'prPeople' })}>Ward list</button>
           <button className="btn ghost" type="button" onClick={() => openSheet({ type: 'prHistory' })}>Speakers and prayers history</button>
-          <button className="btn ghost" type="button" onClick={() => openSheet({ type: 'prImport' })}>Update ward list from LCR</button>
+          <button className="btn ghost" type="button" onClick={() => openSheet({ type: 'import' })}>Update from LCR lists</button>
         </div>
       )}
       <p className="foot">Rules for who gets suggested are in Settings → Prayer assignments.</p>

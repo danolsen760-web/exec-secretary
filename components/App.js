@@ -14,7 +14,7 @@ import Interviews, { todoCounts } from './Interviews';
 import { BookSheet, TextSheet, ApptSheet, LinkSheet, TrackSheet } from './IvSheets';
 import ImportSheet from './ImportSheet';
 import Prayers from './Prayers';
-import { PrImportSheet, PrTextSheet, PrPickSheet, PrMatchSheet, PrPeopleSheet, PrHistorySheet, PrAddSheet } from './PrayerSheets';
+import { PrTextSheet, PrPickSheet, PrMatchSheet, PrPeopleSheet, PrHistorySheet, PrAddSheet } from './PrayerSheets';
 import { makePrayers } from '@/lib/prayers';
 
 const VIEWS = [
@@ -133,7 +133,6 @@ export default function App() {
       {sheet?.type === 'link' && <LinkSheet ctx={ctx} event={sheet.event} onClose={closeSheet} />}
       {sheet?.type === 'import' && <ImportSheet ctx={ctx} onClose={closeSheet} />}
       {sheet?.type === 'track' && <TrackSheet ctx={ctx} household={sheet.household} track={sheet.track} onClose={closeSheet} />}
-      {sheet?.type === 'prImport' && <PrImportSheet ctx={ctx} onClose={closeSheet} />}
       {sheet?.type === 'prText' && <PrTextSheet key={`${sheet.date}${sheet.slot}${sheet.memberId}${sheet.kind}`} ctx={ctx} P={P} {...sheet} onClose={closeSheet} />}
       {sheet?.type === 'prPick' && <PrPickSheet ctx={ctx} P={P} date={sheet.date} slot={sheet.slot} otherId={sheet.otherId} onClose={closeSheet} />}
       {sheet?.type === 'prMatch' && <PrMatchSheet ctx={ctx} P={P} onClose={closeSheet} />}

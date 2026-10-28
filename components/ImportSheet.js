@@ -1,7 +1,7 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { api } from '@/lib/api';
-import { buildFamilies, matchExisting } from '@/lib/lcrImport';
+import { buildFamilies, matchExisting, buildWardList } from '@/lib/lcrImport';
 import { Sheet } from './IvSheets';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -16,6 +16,8 @@ export default function ImportSheet({ ctx, onClose }) {
   const [textPref, setTextPref] = useState('first');
   const [picked, setPicked] = useState({});
   const [busy, setBusy] = useState('');
+  const [ward, setWard] = useState([]);
+  const wardOn = data.prayersReady !== false;
 
   function read() {
     setErr('');
@@ -26,6 +28,7 @@ export default function ImportSheet({ ctx, onClose }) {
     const pick = {};
     r.families.forEach(f => { pick[f.key] = !f.outOfUnitOnly && f.kids.length > 0; });
     setPicked(pick);
+    setWard(buildWardList(hhText, memText));
     setResult(r);
   }
 
@@ -50,7 +53,15 @@ export default function ImportSheet({ ctx, onClose }) {
         ctx.setData(r.data);
         Object.keys(total).forEach(k => { total[k] = Array.isArray(total[k]) ? total[k].concat(r.summary[k]) : total[k] + r.summary[k]; });
       }
-      toast(`Added ${total.added} ${total.added === 1 ? 'family' : 'families'}, updated ${total.updated}${total.skipped.length ? `. Skipped ${total.skipped.length} without a birthday.` : ''}`);
+      let wardMsg = '';
+      if (wardOn && ward.length) {
+        setBusy('Updating the ward list…');
+        const w = await api('/api/prayers', { action: 'importMembers', members: ward });
+        ctx.setData(w.data);
+        wardMsg = ` Ward list: ${ward.length} members${w.summary.moved ? `, ${w.summary.moved} moved` : ''}.`;
+      }
+      const famMsg = payload.length ? `Added ${total.added} ${total.added === 1 ? 'family' : 'families'}, updated ${total.updated}${total.skipped.length ? `. Skipped ${total.skipped.length} without a birthday` : ''}.` : '';
+      toast((famMsg + wardMsg).trim() || 'Nothing to import');
       onClose();
     } catch (e) { toast(e.message, true); setBusy(''); }
   }
@@ -59,7 +70,7 @@ export default function ImportSheet({ ctx, onClose }) {
     <Sheet title="Import from LCR" onClose={onClose}>
       {!result ? (
         <>
-          <div className="note">On a computer, open each list in LCR, select the whole list, copy it, and paste it below. Nothing is saved until you check the preview.</div>
+          <div className="note">On a computer, open each list in LCR, select the whole list, copy it, and paste it below. This updates your youth families and the ward list for sacrament prayers. Nothing is saved until you check the preview.</div>
           <label className="f">1. Household list<textarea value={hhText} onChange={e => setHhText(e.target.value)} placeholder="Paste the household list here" /></label>
           <label className="f">2. Member list<textarea value={memText} onChange={e => setMemText(e.target.value)} placeholder="Paste the member list here" /></label>
           {err && <div className="err">{err}</div>}
@@ -69,6 +80,7 @@ export default function ImportSheet({ ctx, onClose }) {
         <>
           <div className="sub">Found {result.householdCount} households and {result.memberCount} members. {result.families.filter(f => f.youth).length} families have youth.
             {result.unmatched.length > 0 && ` ${result.unmatched.length} people in the member list weren't in a household and were left out.`}</div>
+          {wardOn && <div className="note">All {ward.length} members also go to the ward list for sacrament prayers. Nicknames and don't-ask settings are kept.</div>}
           <div className="checks"><label><input type="checkbox" checked={youthOnly} onChange={e => setYouthOnly(e.target.checked)} />Only families with youth</label></div>
           <label className="f">Send youth interview texts to
             <select value={textPref} onChange={e => setTextPref(e.target.value)}>
@@ -97,8 +109,8 @@ export default function ImportSheet({ ctx, onClose }) {
             ))}
           </ul>
           <button className="btn ghost" type="button" onClick={() => setResult(null)}>Back to paste</button>
-          <button className="btn primary big stickybtn" type="button" disabled={!chosen.length || !!busy} onClick={save}>
-            {busy || `Import ${chosen.length} ${chosen.length === 1 ? 'family' : 'families'}`}</button>
+          <button className="btn primary big stickybtn" type="button" disabled={(!chosen.length && !(wardOn && ward.length)) || !!busy} onClick={save}>
+            {busy || (chosen.length ? `Import ${chosen.length} ${chosen.length === 1 ? 'family' : 'families'}${wardOn ? ' + ward list' : ''}` : 'Update the ward list only')}</button>
         </>
       )}
     </Sheet>

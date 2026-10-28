@@ -1,14 +1,12 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { api } from '@/lib/api';
-import { parseMembers, parseHouseholds, findMember } from '@/lib/lcrImport';
 import { matchName, displayName, ageOf, norm } from '@/lib/prayerNames';
 import { SLOTS, md } from '@/lib/prayers';
 import { smsHref } from '@/lib/ivclient';
 import { sundayLabel } from '@/lib/names';
 import { Sheet } from './IvSheets';
 
-const iso = b => (b ? `${b.year}-${String(b.month).padStart(2, '0')}-${String(b.day).padStart(2, '0')}` : null);
 const KIND = { speaker: 'Speaker', invocation: 'Opening prayer', benediction: 'Closing prayer' };
 
 async function call(ctx, body, msg) {
@@ -16,60 +14,6 @@ async function call(ctx, body, msg) {
   ctx.setData(r.data);
   if (msg) ctx.toast(typeof msg === 'function' ? msg(r) : msg);
   return r;
-}
-
-/* ---------- Import the LCR member list ---------- */
-export function PrImportSheet({ ctx, onClose }) {
-  const [memText, setMemText] = useState('');
-  const [hhText, setHhText] = useState('');
-  const [res, setRes] = useState(null);
-  const [err, setErr] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  function read() {
-    setErr('');
-    const people = parseMembers(memText);
-    if (!people.length) return setErr("Couldn't find any members. Make sure you copied the whole member list.");
-    // Link each person to their household so youth texts can go to a parent
-    const houses = hhText.trim() ? parseHouseholds(hhText) : [];
-    houses.forEach(h => h.members.forEach(m => { const p = findMember(people, m.last, m.first, m.age); if (p && !p.household) p.household = h.key; }));
-    const members = people.map(p => ({ key: `${p.full}|${iso(p.birth) || p.age}`, last: p.last, first: p.first, gender: p.gender, birthDate: iso(p.birth), phone: p.phone, email: p.email, flags: p.flags, household: p.household || '' }));
-    const today = ctx.data.today;
-    const adultish = members.filter(m => ageOf(m, today) >= 12 && !m.flags.some(f => /not baptized/i.test(f)));
-    setRes({ members, houses: houses.length, linked: members.filter(m => m.household).length, eligible: adultish.length, phones: adultish.filter(m => m.phone).length });
-  }
-  async function save() {
-    setBusy(true);
-    try {
-      await call(ctx, { action: 'importMembers', members: res.members },
-        r => `Saved ${r.summary.added + r.summary.updated} members${r.summary.moved ? `, ${r.summary.moved} marked as moved` : ''}. Matched ${r.summary.matched} Wardbullet names.`);
-      onClose();
-    } catch (e) { ctx.toast(e.message, true); setBusy(false); }
-  }
-  return (
-    <Sheet title="Import ward list" onClose={onClose}>
-      {!res ? (
-        <>
-          <div className="note">Use the same LCR lists as the Members import. On a computer, open each list, select the whole list, copy it, and paste it below.</div>
-          <label className="f">1. Member list<textarea value={memText} onChange={e => setMemText(e.target.value)} placeholder="Paste the member list here" /></label>
-          <label className="f">2. Household list (so youth texts can go to a parent)<textarea value={hhText} onChange={e => setHhText(e.target.value)} placeholder="Paste the household list here" /></label>
-          {err && <div className="err">{err}</div>}
-          <button className="btn primary big" type="button" onClick={read}>Read lists</button>
-        </>
-      ) : (
-        <>
-          <div className="box">
-            <div><b>{res.members.length}</b> members{res.houses ? ` in ${res.houses} households` : ''}</div>
-            <div><b>{res.eligible}</b> are baptized and 12 or older, and <b>{res.phones}</b> of them have a phone</div>
-            {!res.houses && <div className="sub">No household list, so youth without a phone can't be texted through a parent.</div>}
-          </div>
-          <div className="sub">People already in the app keep their nicknames and don't-ask settings. Anyone no longer on the list is marked as moved.</div>
-          <button className="btn ghost" type="button" onClick={() => setRes(null)}>Back to paste</button>
-          <button className="btn primary big" type="button" disabled={busy} onClick={save}>{busy ? 'Saving and matching names…' : `Import ${res.members.length} members`}</button>
-        </>
-      )}
-    </Sheet>
-  );
 }
 
 /* ---------- Text someone (ask or remind) ---------- */
