@@ -13,12 +13,16 @@ import { defaultSunday } from '@/lib/suggest';
 import Interviews, { todoCounts } from './Interviews';
 import { BookSheet, TextSheet, ApptSheet, LinkSheet, TrackSheet } from './IvSheets';
 import ImportSheet from './ImportSheet';
+import Prayers from './Prayers';
+import { PrImportSheet, PrTextSheet, PrPickSheet, PrMatchSheet, PrPeopleSheet, PrHistorySheet, PrAddSheet } from './PrayerSheets';
+import { makePrayers } from '@/lib/prayers';
 
 const VIEWS = [
   { key: 'home', label: 'Home', title: 'This week' },
   { key: 'agendas', label: 'Agendas', title: 'Agenda Builder' },
   { key: 'meeting', label: 'Meeting', title: 'Meeting Mode' },
   { key: 'interviews', label: 'Interviews', title: 'Interviews' },
+  { key: 'prayers', label: 'Prayers', title: 'Sacrament Prayers' },
   { key: 'people', label: 'Members', title: 'Members' },
   { key: 'setup', label: 'Settings', title: 'Settings' }
 ];
@@ -54,6 +58,7 @@ export default function App() {
   }, []);
 
   const H = useMemo(() => (data ? makeHelpers(data) : null), [data]);
+  const P = useMemo(() => (data ? makePrayers(data) : null), [data]);
 
   const go = useCallback((v, section) => {
     setView(v);
@@ -90,11 +95,12 @@ export default function App() {
     if (a.trackId) return (data.tracks.find(t => t.id === a.trackId) || {}).name || '';
     return a.eventTitle || '';
   };
-  const ctx = { data, setData, H, toast, go, openFamily: id => setEditing(id), setOpen, setSetOpen, agendaDate, openSheet: setSheet, personName };
+  const ctx = { data, setData, H, P, toast, go, openFamily: id => setEditing(id), setOpen, setSetOpen, agendaDate, openSheet: setSheet, personName };
   const setupLeft = (data.settings.splitConfirmed === 'TRUE' ? 0 : 1) + (data.settings.hoursConfirmed === 'TRUE' ? 0 : 1);
   const t = todoCounts(data);
   const ivBadge = t.remind.length + t.confirm.length + t.follow.length + t.came.length;
   const closeSheet = () => setSheet(null);
+  const prBadge = P.members.length ? P.todo().badge : 0;
 
   return (
     <>
@@ -104,6 +110,7 @@ export default function App() {
         {view === 'agendas' && <Agendas ctx={ctx} date={agendaDate} setDate={setAgendaDate} />}
         {view === 'meeting' && <Meeting ctx={ctx} />}
         {view === 'interviews' && <Interviews ctx={ctx} />}
+        {view === 'prayers' && <Prayers ctx={ctx} P={P} />}
         {view === 'people' && <Members ctx={ctx} />}
         {view === 'setup' && <Settings ctx={ctx} />}
       </div></main>
@@ -114,6 +121,7 @@ export default function App() {
             <Icon name={v.key} />{v.label}
             {v.key === 'setup' && setupLeft > 0 && <span className="dot">{setupLeft}</span>}
             {v.key === 'interviews' && ivBadge > 0 && <span className="dot">{ivBadge}</span>}
+            {v.key === 'prayers' && prBadge > 0 && <span className="dot">{prBadge}</span>}
           </button>
         ))}
       </div></nav>
@@ -125,6 +133,13 @@ export default function App() {
       {sheet?.type === 'link' && <LinkSheet ctx={ctx} event={sheet.event} onClose={closeSheet} />}
       {sheet?.type === 'import' && <ImportSheet ctx={ctx} onClose={closeSheet} />}
       {sheet?.type === 'track' && <TrackSheet ctx={ctx} household={sheet.household} track={sheet.track} onClose={closeSheet} />}
+      {sheet?.type === 'prImport' && <PrImportSheet ctx={ctx} onClose={closeSheet} />}
+      {sheet?.type === 'prText' && <PrTextSheet key={`${sheet.date}${sheet.slot}${sheet.memberId}${sheet.kind}`} ctx={ctx} P={P} {...sheet} onClose={closeSheet} />}
+      {sheet?.type === 'prPick' && <PrPickSheet ctx={ctx} P={P} date={sheet.date} slot={sheet.slot} otherId={sheet.otherId} onClose={closeSheet} />}
+      {sheet?.type === 'prMatch' && <PrMatchSheet ctx={ctx} P={P} onClose={closeSheet} />}
+      {sheet?.type === 'prPeople' && <PrPeopleSheet ctx={ctx} P={P} onClose={closeSheet} />}
+      {sheet?.type === 'prHistory' && <PrHistorySheet ctx={ctx} P={P} onClose={closeSheet} />}
+      {sheet?.type === 'prAdd' && <PrAddSheet ctx={ctx} P={P} date={sheet.date} kind={sheet.kind} onClose={closeSheet} />}
       {toastMsg && <div className={'toast' + (toastMsg.bad ? ' bad' : '')} role="status">{toastMsg.text}</div>}
     </>
   );

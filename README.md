@@ -86,3 +86,12 @@ In Apps Script, go to **Deploy → Manage deployments**, click the pencil icon, 
    - Go to **Members → Import from LCR lists**.
    - Paste the household list and the member list, then tap **Read lists**.
    - Check the preview and tap **Import**.
+
+## Sacrament prayers
+1. **Database:** In Supabase's SQL Editor, run all of `supabase/prayers.sql`. It also loads your past year of speakers and prayers from Wardbullet.
+2. **GitHub:** Go to **Add file → Upload files**, drag in everything inside the updated folder, and click **Commit changes**. The bridge doesn't change this time.
+3. **In the app:**
+   - Open the **Prayers** tab and tap **Import ward list**. Paste the LCR member list and household list (the same two lists as before), tap **Read lists**, then **Import**.
+   - Tap **Match names** and match the few Wardbullet names the app couldn't place, or mark them as not in the ward.
+   - Check the rules in **Settings → Prayer assignments**.
+   - Optional: in **Settings → My reminders**, set the two prayer reminders, then tap **Save and update reminders**.

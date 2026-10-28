@@ -20,7 +20,7 @@ h1{font-family:var(--display);font-weight:600;font-size:1.2rem;margin:0}
 main .wrap{padding-block:14px calc(84px + env(safe-area-inset-bottom,0px));display:grid;gap:12px}
 main .wrap>*{min-width:0}
 .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
-.tabbar .wrap{display:grid;grid-template-columns:repeat(6,1fr);padding-block:4px}
+.tabbar .wrap{display:grid;grid-template-columns:repeat(7,1fr);padding-block:4px;padding-inline:4px}
 .tabbar button{font:inherit;font-size:.7rem;font-weight:600;border:0;background:transparent;color:var(--muted);display:grid;justify-items:center;gap:2px;padding:6px 0;cursor:pointer;position:relative}
 .tabbar svg{width:22px;height:22px}
 .tabbar button[aria-current="page"]{color:var(--accent)}
@@ -211,3 +211,16 @@ a.btn{text-decoration:none;display:inline-block;text-align:center}
 .windowrow .full{grid-column:1/-1}
 .importlist .row{align-items:flex-start;padding-inline:0}
 .importlist input[type=checkbox]{width:20px;height:20px;margin-top:2px;accent-color:var(--accent);flex:none}
+
+/* Prayers */
+.pweek{padding:12px 14px;display:grid;gap:10px}
+.pwhead .ttl{font-size:1rem}
+.pslot{display:grid;gap:5px;padding-top:10px;border-top:1px solid var(--line)}
+.pname{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.pspeak{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline;padding-top:10px;border-top:1px solid var(--line)}
+.pspeak .sub{flex:1;min-width:0}
+.pmore{display:grid;gap:8px}
+.pickrow{font:inherit;text-align:left;border:0;background:transparent;padding:0;width:100%;display:grid;gap:3px;cursor:pointer;color:inherit}
+.row.col{flex-direction:column;align-items:stretch}
+.stackchecks{flex-direction:column;align-items:flex-start;gap:10px}
+.search select{flex:1;min-width:0}

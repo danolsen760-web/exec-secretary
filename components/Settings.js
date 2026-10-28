@@ -18,6 +18,7 @@ export default function Settings({ ctx }) {
         {data.interviewers.map(iv => <InterviewerForm key={iv.id} iv={iv} ctx={ctx} />)}
       </SettingsSection>
       <SettingsSection id="youth" isOpen={setOpen.has('youth')} onToggle={toggle} title="Youth interview rules" sub={data.settings.splitConfirmed === 'TRUE' ? 'Counselor split confirmed' : 'Counselor split not confirmed yet'}><YouthRules ctx={ctx} /></SettingsSection>
+      <SettingsSection id="prayers" isOpen={setOpen.has('prayers')} onToggle={toggle} title="Prayer assignments" sub="Who gets suggested for sacrament prayers"><PrayerRules ctx={ctx} /></SettingsSection>
       <SettingsSection id="texts" isOpen={setOpen.has('texts')} onToggle={toggle} title="Text templates" sub="Confirmation, reminder, follow-up"><Templates ctx={ctx} /></SettingsSection>
       <SettingsSection id="rems" isOpen={setOpen.has('rems')} onToggle={toggle} title="My reminders" sub="When your phone reminds you"><Reminders ctx={ctx} /></SettingsSection>
       <SettingsSection id="agendas" isOpen={setOpen.has('agendas')} onToggle={toggle} title="Agendas" sub="Drive folders, file names, email"><AgendaSettings ctx={ctx} /></SettingsSection>
@@ -229,6 +230,47 @@ function YouthRules({ ctx }) {
   );
 }
 
+/* ---------- Prayer assignments ---------- */
+const PR_KEYS = ['prBaptizedOnly', 'prMinAge', 'prSpokeWeeks', 'prPrayedMonths', 'prAskedWeeks', 'prNeedPhone', 'prActiveFirst', 'prMix', 'prSkipBishopric', 'prWeeksAhead',
+  'tplPrayerAsk', 'tplPrayerAskParent', 'tplPrayerRemind', 'tplPrayerRemindParent'];
+const PR_DEFAULTS = { prBaptizedOnly: 'TRUE', prMinAge: '12', prSpokeWeeks: '8', prPrayedMonths: '6', prAskedWeeks: '4', prNeedPhone: 'TRUE', prActiveFirst: 'TRUE', prMix: 'TRUE', prSkipBishopric: 'TRUE', prWeeksAhead: '3' };
+function PrayerRules({ ctx }) {
+  const { f, set, save, busy } = useSettingsForm(ctx, PR_KEYS);
+  const v = k => (f[k] === '' || f[k] == null ? PR_DEFAULTS[k] : f[k]);
+  const box = (k, label) => <label><input type="checkbox" checked={v(k) !== 'FALSE'} onChange={e => set(k, e.target.checked ? 'TRUE' : 'FALSE')} />{label}</label>;
+  const sel = (k, label, opts) => (
+    <label className="f">{label}
+      <select value={v(k)} onChange={e => set(k, e.target.value)}>{opts.map(([val, text]) => <option key={val} value={val}>{text}</option>)}</select>
+    </label>
+  );
+  const weeks = n => (n === 0 ? "Don't skip anyone" : `${n} weeks`);
+  return (
+    <>
+      <div className="checks stackchecks">{box('prBaptizedOnly', 'Baptized members only')}</div>
+      <div className="two">
+        {sel('prMinAge', 'Minimum age', [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].map(a => [String(a), `${a} and up`]))}
+        {sel('prWeeksAhead', 'Plan ahead', [1, 2, 3, 4, 5, 6, 8].map(n => [String(n), `${n} ${n === 1 ? 'Sunday' : 'Sundays'}`]))}
+      </div>
+      {sel('prSpokeWeeks', "Don't ask people who spoke in the past", [0, 2, 4, 6, 8, 10, 12, 16, 26].map(n => [String(n), weeks(n)]))}
+      {sel('prPrayedMonths', "Prefer people who haven't prayed in the past", [[0, 'No preference'], ...[1, 2, 3, 4, 5, 6, 8, 9, 12].map(n => [n, `${n} ${n === 1 ? 'month' : 'months'}`])].map(([a, b]) => [String(a), b]))}
+      {sel('prAskedWeeks', "Don't re-ask people who said no or didn't reply for", [0, 2, 4, 6, 8, 12].map(n => [String(n), n === 0 ? 'No wait' : `${n} weeks`]))}
+      <div className="checks stackchecks">
+        {box('prNeedPhone', 'Only suggest people I can text (they or a parent have a phone)')}
+        {box('prActiveFirst', "Suggest families who've spoken or prayed in the past year first")}
+        {box('prMix', 'Try to pair a man and a woman each Sunday')}
+        {box('prSkipBishopric', 'Skip the bishop and his counselors')}
+      </div>
+      <div className="sub">Couples and families are never suggested for both prayers on the same Sunday. Anyone can be left out for good from the Ward list on the Prayers tab.</div>
+      <label className="f">Asking · to the person<textarea value={f.tplPrayerAsk} onChange={e => set('tplPrayerAsk', e.target.value)} /></label>
+      <label className="f">Asking · to a parent (youth)<textarea value={f.tplPrayerAskParent} onChange={e => set('tplPrayerAskParent', e.target.value)} /></label>
+      <label className="f">Reminder · to the person<textarea value={f.tplPrayerRemind} onChange={e => set('tplPrayerRemind', e.target.value)} /></label>
+      <label className="f">Reminder · to a parent (youth)<textarea value={f.tplPrayerRemindParent} onChange={e => set('tplPrayerRemindParent', e.target.value)} /></label>
+      <div className="legend">Fill-ins: <code>{'{name}'}</code> their first name · <code>{'{parent}'}</code> Sister Torres · <code>{'{prayer}'}</code> opening prayer · <code>{'{day}'}</code> Sunday, Nov 8 · <code>{'{when}'}</code> tomorrow · <code>{'{me}'}</code> your signature</div>
+      <div className="btns"><button className="btn primary" type="button" disabled={busy} onClick={() => save('Prayer settings saved', Object.fromEntries(Object.keys(PR_DEFAULTS).map(k => [k, v(k)])))}>{busy ? 'Saving…' : 'Save'}</button></div>
+    </>
+  );
+}
+
 const TEMPLATES = [
   ['tplConfirmParent', 'Confirmation · to a parent'], ['tplConfirmAdult', 'Confirmation · adult'],
   ['tplReminderParent', 'Reminder · to a parent'], ['tplReminderAdult', 'Reminder · adult'],
@@ -251,7 +293,7 @@ function Templates({ ctx }) {
   );
 }
 
-const REMINDERS = [['remAgendas', 'Create and send agendas'], ['remReminders', 'Interview reminder texts (for Sunday)'], ['remReminders2', 'Interview reminder texts (for Wednesday)'], ['remFill', "Fill next week's interview calendars"], ['remConfirm', 'Confirm who came']];
+const REMINDERS = [['remAgendas', 'Create and send agendas'], ['remReminders', 'Interview reminder texts (for Sunday)'], ['remReminders2', 'Interview reminder texts (for Wednesday)'], ['remFill', "Fill next week's interview calendars"], ['remConfirm', 'Confirm who came'], ['remPrayers', 'Ask for sacrament prayers'], ['remPrayerRem', 'Prayer reminder texts']];
 function Reminders({ ctx }) {
   const { f, set, save, busy } = useSettingsForm(ctx, [...REMINDERS.flatMap(([k]) => [`${k}Day`, `${k}Time`]), 'followUpDays']);
   const [syncing, setSyncing] = useState(false);

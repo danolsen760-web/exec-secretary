@@ -3,6 +3,7 @@ import { IvTag, DuePill } from './bits';
 import { MEETINGS, sundayLabel } from '@/lib/names';
 import { meetingsOn } from '@/lib/suggest';
 import { todoCounts } from './Interviews';
+import { displayName } from '@/lib/prayerNames';
 
 export default function Home({ ctx }) {
   const { data, H, go } = ctx;
@@ -53,6 +54,31 @@ export default function Home({ ctx }) {
         );
       })()}
 
+      {data.prayersReady && (() => {
+        const P = ctx.P;
+        if (!P.members.length) return (
+          <div className="card made">
+            <div><div className="mini">Sacrament prayers</div><div className="sub">Import the ward list to get suggestions.</div></div>
+            <button className="btn soft" type="button" onClick={() => go('prayers')}>Open Prayers</button>
+          </div>
+        );
+        const t = P.todo();
+        const w = t.next;
+        const who = s => { const st = s.state; if (st.type === 'yes') return <span className="pill ok">{displayName(st.member)}</span>;
+          if (st.type === 'asked') return <span className="pill warn">Asked {displayName(st.member)}</span>;
+          if (st.type === 'wardbullet') return <span className="pill ok">{st.member ? displayName(st.member) : st.name}</span>;
+          return <span className="pill bad">Not assigned</span>; };
+        const lines = [[t.remind.length, 'reminders to send'], [t.waiting, 'waiting on a reply'], [t.wardbullet, 'to add to Wardbullet'], [t.open, `open in the next ${P.cfg.weeksAhead} weeks`]].filter(x => x[0]);
+        return (
+          <div className="card made">
+            <div><div className="mini">Sacrament prayers · {sundayLabel(w.date)}</div>
+              {w.skip ? <div className="sub">No sacrament meeting</div> : w.slots.map(s => <div className="agrow" key={s.key}><span className="name">{s.label}</span>{who(s)}</div>)}
+              {lines.map(([n, l]) => <div className="sub" key={l}>{n} {l}</div>)}</div>
+            <button className={'btn ' + (t.badge ? 'primary' : 'ghost')} type="button" onClick={() => go('prayers')}>Open Prayers</button>
+          </div>
+        );
+      })()}
+
       <div className="stats">
         <div className="stat bad"><b>{over}</b><span>Youth overdue</span></div>
         <div className="stat warn"><b>{soon}</b><span>Due in 6 weeks</span></div>
@@ -89,7 +115,6 @@ export default function Home({ ctx }) {
           <div className="pad sub">{ys.length ? 'No youth are due in the next 6 weeks.' : 'Youth show up here once you add their families in Members.'}</div>
         )}
       </div>
-      <p className="foot">Scheduling, texting, and your reminders arrive in stage 2.</p>
     </>
   );
 }
