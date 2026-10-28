@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { md } from '@/lib/youth';
-import { people, whenLabel, recipient, isUpcoming } from '@/lib/ivclient';
+import { people, whenLabel, recipient, isUpcoming, familyGroup } from '@/lib/ivclient';
 import { phxDate, phxTime, dayShort, time12 } from '@/lib/time';
 import { IvTag } from './bits';
 
@@ -67,7 +67,7 @@ export default function Interviews({ ctx }) {
       t.follow.length > 0 && (
         <div className="card task" key="follow"><div className="head"><span className="icon y">!</span><div><div className="ttl">No reply yet</div><div className="sub">Texted {data.settings.followUpDays || 3}+ days ago</div></div></div>
           <ul className="rows">{t.follow.map(a => row(a, <div className="btns">
-            <button className="btn ghost" type="button" onClick={async () => { ctx.setData(await api('/api/interviews/update', { id: a.id, action: 'confirmed' })); ctx.toast('Marked as confirmed'); }}>Confirmed</button>
+            <button className="btn ghost" type="button" onClick={async () => { const g = familyGroup(data, a, 'confirmed'); for (const x of g) ctx.setData(await api('/api/interviews/update', { id: x.id, action: 'confirmed' })); ctx.toast(g.length > 1 ? `Marked ${g.length} as confirmed` : 'Marked as confirmed'); }}>Confirmed</button>
             <button className="btn soft" type="button" onClick={() => ctx.openSheet({ type: 'text', appt: a, kind: 'follow' })}>Text again</button></div>))}</ul></div>
       ),
       t.came.length > 0 && (

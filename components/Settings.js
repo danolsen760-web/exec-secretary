@@ -4,6 +4,7 @@ import { api } from '@/lib/api';
 import { DAYS, TITLES } from '@/lib/youth';
 import { dayShort } from '@/lib/time';
 import { IvTag, Caret, saver } from './bits';
+import { GROUP_TEMPLATES } from '@/lib/ivclient';
 
 export default function Settings({ ctx }) {
   const { data, setOpen, setSetOpen } = ctx;
@@ -274,21 +275,23 @@ function PrayerRules({ ctx }) {
 const TEMPLATES = [
   ['tplConfirmParent', 'Confirmation · to a parent'], ['tplConfirmAdult', 'Confirmation · adult'],
   ['tplReminderParent', 'Reminder · to a parent'], ['tplReminderAdult', 'Reminder · adult'],
-  ['tplFollowParent', 'Follow-up · to a parent'], ['tplFollowAdult', 'Follow-up · adult'], ['tplReschedule', 'New time']
+  ['tplFollowParent', 'Follow-up · to a parent'], ['tplFollowAdult', 'Follow-up · adult'], ['tplReschedule', 'New time'],
+  ['tplConfirmGroup', 'Confirmation · brothers and sisters together'], ['tplReminderGroup', 'Reminder · brothers and sisters together'], ['tplFollowGroup', 'Follow-up · brothers and sisters together']
 ];
 function Templates({ ctx }) {
   const { f, set, save, busy } = useSettingsForm(ctx, ['me', ...TEMPLATES.map(t => t[0])]);
+  const val = k => f[k] || GROUP_TEMPLATES[k] || '';
   return (
     <>
       <label className="f">How you sign texts<input type="text" value={f.me} onChange={e => set('me', e.target.value)} /></label>
       {TEMPLATES.map(([k, label]) => (
-        <label className="f" key={k}>{label}<textarea value={f[k]} onChange={e => set(k, e.target.value)} /></label>
+        <label className="f" key={k}>{label}<textarea value={val(k)} onChange={e => set(k, e.target.value)} /></label>
       ))}
       <div className="legend">
         Fill-ins: <code>{'{parent}'}</code> Sister Torres · <code>{'{youth}'}</code> Emma · <code>{'{name}'}</code> person's first name · <code>{'{interviewer}'}</code> Brother Butler ·{' '}
-        <code>{'{day}'}</code> Sunday, Nov 1 · <code>{'{time}'}</code> 9:15 am · <code>{'{place}'}</code> clerk's office · <code>{'{type}'}</code> temple recommend · <code>{'{me}'}</code> your signature
+        <code>{'{day}'}</code> Sunday, Nov 1 · <code>{'{time}'}</code> 9:15 am · <code>{'{place}'}</code> clerk's office · <code>{'{type}'}</code> temple recommend · <code>{'{me}'}</code> your signature · <code>{'{list}'}</code> each person's time and interviewer (together texts)
       </div>
-      <div className="btns"><button className="btn primary" type="button" disabled={busy} onClick={() => save('Text templates saved')}>{busy ? 'Saving…' : 'Save'}</button></div>
+      <div className="btns"><button className="btn primary" type="button" disabled={busy} onClick={() => save('Text templates saved', Object.fromEntries(Object.keys(GROUP_TEMPLATES).map(k => [k, val(k)])))}>{busy ? 'Saving…' : 'Save'}</button></div>
     </>
   );
 }

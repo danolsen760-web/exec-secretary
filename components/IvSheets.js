@@ -2,7 +2,8 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { md } from '@/lib/youth';
-import { recipient, message, smsHref, whenLabel, longName, ivForLeader, people } from '@/lib/ivclient';
+import { recipient, message, smsHref, whenLabel, longName, ivForLeader, people, familyGroup, groupMessage } from '@/lib/ivclient';
+import { phxDate, dayLong } from '@/lib/time';
 
 export function Sheet({ title, onClose, children }) {
   useEffect(() => {
@@ -26,6 +27,9 @@ export function Sheet({ title, onClose, children }) {
 }
 
 /* ---------- Pick a time (new booking or reschedule) ---------- */
+const GAP = 15 * 60000; // at most one empty slot between family members
+const tms = x => new Date(x.start).getTime();
+
 export function BookSheet({ ctx, person, appt, onClose }) {
   const { data, H, toast } = ctx;
   const rescheduling = !!appt;
@@ -36,11 +40,58 @@ export function BookSheet({ ctx, person, appt, onClose }) {
   const [pick, setPick] = useState(null);
   const [busy, setBusy] = useState(false);
 
+  // Others in the family who could come the same day
+  const [fam, setFam] = useState(() => {
+    if (rescheduling || !person.household) return [];
+    return people(data, H)
+      .filter(p => p.key !== person.key && p.household && p.household.id === person.household.id && p.status !== 'sch')
+      .sort((a, b) => (a.due || 0) - (b.due || 0))
+      .map(p => ({ p, on: ['over', 'missing', 'soon'].includes(p.status), ivId: (ivForLeader(data, p.interviewer) || data.interviewers[0]).id }));
+  });
+  const [extra, setExtra] = useState({}); // openings for the other interviewers
+  const [together, setTogether] = useState(true); // different interviewers can meet at the same time
+  const famOn = fam.filter(f => f.on);
+
   async function load(id = ivId) {
     setRes(null); setErr(''); setPick(null);
     try { setRes(await api(`/api/interviews/openings?iv=${id}&days=28`)); } catch (e) { setErr(e.message); }
   }
   useEffect(() => { load(ivId); }, [ivId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    famOn.map(f => f.ivId).filter((id, i, all) => id !== ivId && !extra[id] && all.indexOf(id) === i).forEach(id => {
+      setExtra(x => ({ ...x, [id]: 'loading' }));
+      api(`/api/interviews/openings?iv=${id}&days=28`).then(r => setExtra(x => ({ ...x, [id]: r }))).catch(() => setExtra(x => ({ ...x, [id]: null })));
+    });
+  }, [fam, ivId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Times for the whole family, back to back around the time you picked. Null if it doesn't fit. */
+  function planFor(anchor, date) {
+    const out = [{ p: person, ivId, slot: anchor }];
+    const used = new Set([`${ivId}|${anchor.start}`]);
+    let lo = tms(anchor), hi = lo + anchor.minutes * 60000;
+    for (const f of famOn) {
+      const r = f.ivId === ivId ? res : extra[f.ivId];
+      if (!r || r === 'loading') return null;
+      const day = r.days.find(d => d.date === date);
+      if (!day || day.off) return null;
+      const free = day.slots.filter(x => !x.taken && !used.has(`${f.ivId}|${x.start}`));
+      const end = x => tms(x) + x.minutes * 60000;
+      // Different interviewer: same time as someone else in the family, if they're free then
+      const same = together && free.filter(x => out.some(o => o.ivId !== f.ivId && tms(o.slot) === tms(x)) && !out.some(o => o.ivId === f.ivId && tms(o.slot) === tms(x)))
+        .sort((a, b) => tms(a) - tms(b))[0];
+      if (same) { used.add(`${f.ivId}|${same.start}`); out.push({ p: f.p, ivId: f.ivId, slot: same }); continue; }
+      const after = free.filter(x => tms(x) >= hi && tms(x) - hi <= GAP).sort((a, b) => tms(a) - tms(b))[0];
+      const got = after || free.filter(x => end(x) <= lo && lo - end(x) <= GAP).sort((a, b) => tms(b) - tms(a))[0];
+      if (!got) return null;
+      used.add(`${f.ivId}|${got.start}`);
+      out.push({ p: f.p, ivId: f.ivId, slot: got });
+      lo = Math.min(lo, tms(got)); hi = Math.max(hi, end(got));
+    }
+    return out.sort((a, b) => tms(a.slot) - tms(b.slot));
+  }
+  const pickDay = pick && res ? res.days.find(d => d.slots.includes(pick)) : null;
+  const plan = pick && pickDay ? planFor(pick, pickDay.date) : null;
+  const loadingExtra = famOn.some(f => f.ivId !== ivId && (!extra[f.ivId] || extra[f.ivId] === 'loading'));
 
   async function dayOff(date, off) {
     try { ctx.setData(await api('/api/interviews/dayoff', { interviewerId: ivId, date, off })); load(); toast(off ? 'Marked as no interviews that day' : 'Back on for that day'); }
@@ -57,18 +108,24 @@ export function BookSheet({ ctx, person, appt, onClose }) {
         toast('Moved on the calendar');
         ctx.openSheet({ type: 'text', appt: fresh, kind: 'reschedule' });
       } else {
-        const r = await api('/api/interviews/book', {
-          childId: person.childId, trackId: person.trackId, interviewerId: ivId, start: pick.start, minutes: pick.minutes, place: pick.place
-        });
-        ctx.setData(r.data);
-        const fresh = r.data.appointments.find(a => a.id === r.appointmentId);
-        toast('Booked and added to the calendar');
+        const items = plan || [{ p: person, ivId, slot: pick }];
+        let last, mainId;
+        for (const it of items) {
+          last = await api('/api/interviews/book', {
+            childId: it.p.childId, trackId: it.p.trackId, interviewerId: it.ivId, start: it.slot.start, minutes: it.slot.minutes, place: it.slot.place
+          });
+          if (it.p.key === person.key) mainId = last.appointmentId;
+        }
+        ctx.setData(last.data);
+        const fresh = last.data.appointments.find(a => a.id === mainId);
+        toast(items.length > 1 ? `Booked ${items.length} interviews back to back` : 'Booked and added to the calendar');
         ctx.openSheet({ type: 'text', appt: fresh, kind: 'confirm' });
       }
     } catch (e) { toast(e.message, true); setBusy(false); }
   }
 
   const name = rescheduling ? (ctx.personName(appt) || 'Interview') : person.name;
+  const dueText = p => (p.status === 'missing' ? 'due now' : p.due ? `due ${md(p.due)}` : '');
   return (
     <Sheet title={rescheduling ? 'Pick a new time' : 'Schedule interview'} onClose={onClose}>
       <div><div className="ttl">{name}</div>
@@ -78,26 +135,57 @@ export function BookSheet({ ctx, person, appt, onClose }) {
           <button key={iv.id} className="chip" type="button" aria-pressed={iv.id === ivId} onClick={() => setIvId(iv.id)}>{H.short(iv.leaderId)}</button>
         ))}
       </div>
+      {fam.length > 0 && (
+        <div className="box">
+          <div className="name">Same trip for the family</div>
+          <div className="sub">Checked people are booked back to back with {person.first || name}, so the family comes once.</div>
+          {fam.map((f, i) => (
+            <div className="famrow" key={f.p.key}>
+              <label className="checks"><input type="checkbox" checked={f.on} onChange={e => { setPick(null); setFam(x => x.map((y, j) => (j === i ? { ...y, on: e.target.checked } : y))); }} />
+                <span><b>{f.p.first || f.p.name}</b>{f.p.age ? ` ${f.p.age}` : ''} · {f.p.type === 'Youth' ? '' : `${f.p.type} · `}{dueText(f.p)}</span></label>
+              {f.on && (
+                <select aria-label={`Who interviews ${f.p.first || f.p.name}`} value={f.ivId} onChange={e => { setPick(null); setFam(x => x.map((y, j) => (j === i ? { ...y, ivId: e.target.value } : y))); }}>
+                  {data.interviewers.map(iv => <option key={iv.id} value={iv.id}>with {H.short(iv.leaderId)}{iv.leaderId === f.p.interviewer ? ' (their turn)' : ''}</option>)}
+                </select>
+              )}
+            </div>
+          ))}
+          {famOn.some(f => f.ivId !== ivId) && (
+            <label className="checks"><input type="checkbox" checked={together} onChange={e => { setPick(null); setTogether(e.target.checked); }} />Same time when it's a different interviewer</label>
+          )}
+        </div>
+      )}
       {err && <div className="err">{err}</div>}
-      {!res && !err && <div className="sub">Checking the calendar…</div>}
+      {(!res || loadingExtra) && !err && <div className="sub">Checking the calendar…</div>}
       {res && !res.calendarConnected && <div className="note">This interviewer has no Google Calendar chosen yet, so the app can't see what's already booked. Choose one in Settings → Interviewers and hours.</div>}
       {res && res.days.length === 0 && <div className="sub">No times in the next 4 weeks. Check this interviewer's hours in Settings.</div>}
-      {res && res.days.map(d => (
+      {res && !loadingExtra && famOn.length > 0 && !res.days.some(d => !d.off && d.slots.some(s => !s.taken && planFor(s, d.date))) && (
+        <div className="note">No time in the next 4 weeks fits everyone back to back. Try having one person do all of them, or uncheck someone.</div>
+      )}
+      {res && !loadingExtra && res.days.map(d => (
         <div key={d.date} className="dayblock">
           <div className="prow"><span className="name">{d.label}</span>
             <button className="link" type="button" onClick={() => dayOff(d.date, !d.off)}>{d.off ? 'Turn this day back on' : 'No interviews this day'}</button></div>
           {d.off ? <div className="sub">Marked as no interviews.</div> : (
             <div className="slots">
               {d.slots.map(s => (
-                <button key={s.start} className="chip" type="button" disabled={s.taken} aria-pressed={pick?.start === s.start} onClick={() => setPick(s)}>{s.label.replace(' ', ' ')}</button>
+                <button key={s.start} className="chip" type="button" disabled={s.taken || (famOn.length > 0 && !planFor(s, d.date))} aria-pressed={pick?.start === s.start} onClick={() => setPick(s)}>{s.label.replace(' ', ' ')}</button>
               ))}
             </div>
           )}
         </div>
       ))}
+      <div className="stickybar">
+      {plan && plan.length > 1 && (
+        <div className="box plan">
+          <div className="name">{pickDay.label}</div>
+          {plan.map(it => <div key={it.p.key} className="sub">{it.slot.label} · <b>{it.p.first || it.p.name}</b> with {H.short(data.interviewers.find(v => v.id === it.ivId).leaderId)}</div>)}
+        </div>
+      )}
       <button className="btn primary big stickybtn" type="button" disabled={!pick || busy} onClick={confirm}>
-        {busy ? 'Saving…' : pick ? `${rescheduling ? 'Move to' : 'Book'} ${data && res ? res.days.find(d => d.slots.includes(pick))?.label : ''}, ${pick.label}` : 'Pick a time'}
+        {busy ? 'Saving…' : !pick ? 'Pick a time' : plan && plan.length > 1 ? `Book all ${plan.length}` : `${rescheduling ? 'Move to' : 'Book'} ${pickDay ? pickDay.label : ''}, ${pick.label}`}
       </button>
+      </div>
     </Sheet>
   );
 }
@@ -107,20 +195,28 @@ export function TextSheet({ ctx, appt, kind, onClose }) {
   const { data, toast } = ctx;
   const [which, setWhich] = useState(null);
   const rec = recipient(data, appt, which);
-  const [text, setText] = useState(() => message(data, appt, kind, rec));
-  useEffect(() => { setText(message(data, appt, kind, recipient(data, appt, which))); }, [which]); // eslint-disable-line react-hooks/exhaustive-deps
+  const group = familyGroup(data, appt, kind);
+  const [include, setInclude] = useState(true);
+  const together = include && group.length > 1;
+  const build = r => (together ? groupMessage(data, group, kind, r) : message(data, appt, kind, r));
+  const [text, setText] = useState(() => (rec ? build(rec) : ''));
+  useEffect(() => { const r = recipient(data, appt, which); if (r) setText(build(r)); }, [which, include]); // eslint-disable-line react-hooks/exhaustive-deps
   const titles = { confirm: 'Send confirmation', remind: 'Send reminder', follow: 'Follow up', reschedule: 'Send the new time' };
 
   async function sent() {
     try {
-      ctx.setData(await api('/api/interviews/update', { id: appt.id, action: kind === 'remind' ? 'reminded' : 'texted' }));
+      const action = kind === 'remind' ? 'reminded' : 'texted';
+      for (const a of (together ? group : [appt])) ctx.setData(await api('/api/interviews/update', { id: a.id, action }));
     } catch (e) { toast(e.message, true); }
     onClose();
   }
   if (!rec) return <Sheet title={titles[kind]} onClose={onClose}><div className="err">Couldn't find who to text for this interview.</div></Sheet>;
   return (
     <Sheet title={titles[kind]} onClose={onClose}>
-      <div className="sub">{ctx.personName(appt)} · {whenLabel(appt)} · {longName(data, appt.interviewer)}</div>
+      <div className="sub">{together ? `${group.map(a => ctx.personName(a)).join(', ')} · ${dayLong(phxDate(appt.startsAt))}` : `${ctx.personName(appt)} · ${whenLabel(appt)} · ${longName(data, appt.interviewer)}`}</div>
+      {group.length > 1 && (
+        <label className="checks"><input type="checkbox" checked={include} onChange={e => setInclude(e.target.checked)} />One text for {group.length} interviews that day</label>
+      )}
       <div>
         <div className="mini">To</div>
         <div className="name">{rec.label} · {rec.phone || 'No phone on file'}</div>
@@ -130,7 +226,7 @@ export function TextSheet({ ctx, appt, kind, onClose }) {
       {rec.phone
         ? <a className="btn primary big" href={smsHref(rec.phone, text)} onClick={() => setTimeout(sent, 300)}>Open in Messages</a>
         : <div className="err">Add a phone number for this family in Members first.</div>}
-      <div className="foot">Your Messages app opens with this filled in. Tap Send there. The app marks it as texted.</div>
+      <div className="foot">Your Messages app opens with this filled in. Tap Send there. The app marks {together ? 'all of them' : 'it'} as texted.</div>
     </Sheet>
   );
 }
@@ -163,7 +259,13 @@ export function ApptSheet({ ctx, appt, onClose }) {
       ) : (
         <div className="stack">
           <button className="btn soft" type="button" onClick={() => ctx.openSheet({ type: 'text', appt: a, kind: a.textedAt ? 'remind' : 'confirm' })}>{a.textedAt ? 'Send a reminder' : 'Send confirmation'}</button>
-          {a.textedAt && !a.confirmedAt && <button className="btn ghost" type="button" disabled={!!busy} onClick={() => act('confirmed', 'Marked as confirmed')}>They confirmed</button>}
+          {a.textedAt && !a.confirmedAt && <button className="btn ghost" type="button" disabled={!!busy} onClick={async () => {
+            const g = familyGroup(data, a, 'confirmed');
+            if (g.length < 2) return act('confirmed', 'Marked as confirmed');
+            setBusy('confirmed');
+            try { for (const x of g) ctx.setData(await api('/api/interviews/update', { id: x.id, action: 'confirmed' })); toast(`Marked ${g.length} family interviews as confirmed`); onClose(); }
+            catch (e) { toast(e.message, true); setBusy(''); }
+          }}>They confirmed</button>}
           <button className="btn ghost" type="button" onClick={() => ctx.openSheet({ type: 'book', appt: a })}>Pick a new time</button>
           {!sure ? <button className="btn danger" type="button" onClick={() => setSure(true)}>Cancel interview</button> : (
             <div className="box"><div className="sub">This removes it from the calendar and puts them back on the due list.</div>

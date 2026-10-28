@@ -224,3 +224,9 @@ a.btn{text-decoration:none;display:inline-block;text-align:center}
 .row.col{flex-direction:column;align-items:stretch}
 .stackchecks{flex-direction:column;align-items:flex-start;gap:10px}
 .search select{flex:1;min-width:0}
+.famrow{display:grid;gap:6px}
+.famrow select{background:var(--surface)}
+.plan .sub{color:var(--fg)}
+.stickybar{position:sticky;bottom:0;background:var(--surface);display:grid;gap:6px;padding-top:6px;box-shadow:0 -8px 16px var(--surface)}
+.stickybar .stickybtn{position:static;box-shadow:none}
+.plan{gap:2px;padding:8px 10px}
