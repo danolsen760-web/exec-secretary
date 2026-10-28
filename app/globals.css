@@ -209,3 +209,5 @@ a.btn{text-decoration:none;display:inline-block;text-align:center}
 .stickybtn{position:sticky;bottom:0;box-shadow:0 -8px 16px var(--surface)}
 .windowrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;background:var(--surface);border-radius:8px;padding:8px}
 .windowrow .full{grid-column:1/-1}
+.importlist .row{align-items:flex-start;padding-inline:0}
+.importlist input[type=checkbox]{width:20px;height:20px;margin-top:2px;accent-color:var(--accent);flex:none}

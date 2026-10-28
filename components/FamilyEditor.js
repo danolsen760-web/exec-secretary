@@ -4,7 +4,7 @@ import { api } from '@/lib/api';
 import { MONTHS, md } from '@/lib/youth';
 import { saver } from './bits';
 
-const blankKid = () => ({ id: '', first: '', age: '', birthMonth: 1, birthDay: '', lastInterview: '', lastWith: '', override: 'auto', active: true });
+const blankKid = () => ({ id: '', first: '', age: '', birthMonth: 1, birthDay: '', lastInterview: '', lastWith: '', override: 'auto', phone: '', textSelf: false, flags: '', active: true });
 
 export default function FamilyEditor({ ctx, householdId, onClose }) {
   const { H } = ctx;
@@ -13,7 +13,7 @@ export default function FamilyEditor({ ctx, householdId, onClose }) {
     id: '', family: '', p1Title: 'Bro.', p1First: '', p1Phone: '', p1Email: '', p2Title: 'Sis.', p2First: '', p2Phone: '', p2Email: '', textTo: 2, active: true
   });
   const [kids, setKids] = useState(() => existing
-    ? H.kidsOf(existing.id).map(c => ({ ...c, age: String(H.ageOf(c)), lastInterview: c.lastInterview || '', lastWith: c.lastWith || '', override: c.override || 'auto' }))
+    ? H.kidsOf(existing.id).map(c => ({ ...c, age: String(H.ageOf(c)), lastInterview: c.lastInterview || '', lastWith: c.lastWith || '', override: c.override || 'auto', phone: c.phone || '', textSelf: !!c.textSelf, flags: c.flags || '' }))
     : [blankKid()]);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -56,11 +56,11 @@ export default function FamilyEditor({ ctx, householdId, onClose }) {
       if (isNaN(bd) || bd < 1 || bd > 31) return fail(`Add the day of ${k.first}'s birthday.`);
       out.push({
         id: k.id, first: k.first.trim(), birthMonth: bm, birthDay: bd, birthYear: H.birthYearFrom(age, bm, bd),
-        lastInterview: k.lastInterview, lastWith: k.lastWith, override: k.override || 'auto', active: k.active !== false
+        lastInterview: k.lastInterview, lastWith: k.lastWith, override: k.override || 'auto', phone: k.phone || '', textSelf: !!k.textSelf, flags: k.flags || '', active: k.active !== false
       });
     }
     if (!h.family.trim()) return fail('Add the family name.');
-    if (!h.p1First.trim() && !h.p2First.trim()) return fail('Add at least one parent.');
+    if (!h.p1First.trim() && !h.p2First.trim() && !out.length) return fail('Add at least one parent or child.');
     const household = { ...h, active: activeOverride === undefined ? h.active !== false : activeOverride };
     setErr('');
     const msg = activeOverride === false ? `Marked the ${h.family} family as moved` : `Saved the ${h.family.trim()} family`;
@@ -128,6 +128,9 @@ export default function FamilyEditor({ ctx, householdId, onClose }) {
                   </select>
                 </label>
               </div>
+              <input type="tel" placeholder="Youth's own phone (optional)" aria-label="Youth's phone" value={k.phone || ''} onChange={e => setKF(i, 'phone', e.target.value)} />
+              <label className="checks"><input type="checkbox" checked={!!k.textSelf || (!h.p1First.trim() && !h.p2First.trim())} disabled={!h.p1First.trim() && !h.p2First.trim()} onChange={e => setKF(i, 'textSelf', e.target.checked)} />Send interview texts to this youth instead of a parent</label>
+              {k.flags && <div className="det"><span className="pill plain">{k.flags}</span></div>}
               <label className="f">Counselor
                 <select value={k.override} onChange={e => setKF(i, 'override', e.target.value)}>
                   <option value="auto">Follow the age split</option>

@@ -78,3 +78,11 @@ In Apps Script, go to **Deploy → Manage deployments**, click the pencil icon, 
    - In **Settings → Interviewers and hours**, choose each person's Google Calendar, check their times, and tap **Save**.
    - In **Settings → My reminders**, tap **Turn on phone reminders**.
    - In **Settings → Data**, tap **Back up to Drive now** to test the backup.
+
+## Import from LCR + youth phones
+1. **Database:** In Supabase's SQL Editor, run all of `supabase/import.sql`.
+2. **GitHub:** Go to **Add file → Upload files**, drag in everything inside the updated folder, and click **Commit changes**. The bridge doesn't change this time.
+3. **In the app:**
+   - Go to **Members → Import from LCR lists**.
+   - Paste the household list and the member list, then tap **Read lists**.
+   - Check the preview and tap **Import**.

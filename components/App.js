@@ -12,6 +12,7 @@ import Meeting from './Meeting';
 import { defaultSunday } from '@/lib/suggest';
 import Interviews, { todoCounts } from './Interviews';
 import { BookSheet, TextSheet, ApptSheet, LinkSheet, TrackSheet } from './IvSheets';
+import ImportSheet from './ImportSheet';
 
 const VIEWS = [
   { key: 'home', label: 'Home', title: 'This week' },
@@ -122,6 +123,7 @@ export default function App() {
       {sheet?.type === 'text' && <TextSheet key={`${sheet.appt.id}-${sheet.kind}`} ctx={ctx} appt={sheet.appt} kind={sheet.kind} onClose={closeSheet} />}
       {sheet?.type === 'appt' && <ApptSheet key={sheet.appt.id} ctx={ctx} appt={sheet.appt} onClose={closeSheet} />}
       {sheet?.type === 'link' && <LinkSheet ctx={ctx} event={sheet.event} onClose={closeSheet} />}
+      {sheet?.type === 'import' && <ImportSheet ctx={ctx} onClose={closeSheet} />}
       {sheet?.type === 'track' && <TrackSheet ctx={ctx} household={sheet.household} track={sheet.track} onClose={closeSheet} />}
       {toastMsg && <div className={'toast' + (toastMsg.bad ? ' bad' : '')} role="status">{toastMsg.text}</div>}
     </>

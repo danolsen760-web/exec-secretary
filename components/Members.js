@@ -28,6 +28,7 @@ export default function Members({ ctx }) {
         <input type="text" id="q" placeholder="Search families or names" value={q} onChange={e => setQ(e.target.value)} aria-label="Search" />
         <button className="btn primary" type="button" onClick={() => openFamily('')}>+ Family</button>
       </div>
+      <button className="btn ghost" type="button" onClick={() => ctx.openSheet({ type: 'import' })}>Import from LCR lists</button>
       <div className="sub">
         {all.length - inactiveN} families · {youthN} youth
         {inactiveN > 0 && <> · <button className="link" type="button" onClick={() => setShowInactive(s => !s)}>{showInactive ? 'Hide' : 'Show'} {inactiveN} moved/inactive</button></>}
@@ -147,6 +148,8 @@ function Child({ c, H, ctx }) {
             <div className="det">Youth interview · next with <IvTag id={y.next} H={H} /></div>
             <div><DuePill y={y} /></div>
           </div><ScheduleBit ctx={ctx} person={person} /></div>
+          {(c.phone || c.textSelf) && <div className="det">{c.phone && <span>Own phone: {c.phone}</span>}{c.textSelf && <span className="pill">Texts go to {c.first}</span>}</div>}
+          {c.flags && <div className="det"><span className="pill plain">{c.flags}</span></div>}
           {last && <div className="det">Last: {md(last)}, {last.getFullYear()}{c.lastWith ? ` with ${H.short(c.lastWith)}` : ''}</div>}
           {c.override && c.override !== 'auto' && (
             <div className="det"><span className="pill">Override: {c.override === 'bishop' ? 'Bishop only' : `Always ${H.short(c.override)}`}</span></div>
